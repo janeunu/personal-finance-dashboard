@@ -3,168 +3,172 @@ import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 import requests
-import json
 import io
 import os
 
-st.set_page_config(
-    page_title="Money Health Agent",
-    page_icon="💰",
-    layout="wide"
-)
+st.set_page_config(page_title="Money Health", page_icon="💰", layout="wide")
 
 # ══════════════════════════════════════════════════════════
-#  DESIGN TOKENS
+#  CONSTANTS
 # ══════════════════════════════════════════════════════════
-CATEGORY_COLORS = [
-    "#2563eb", "#7c3aed", "#059669", "#d97706", "#dc2626",
-    "#0891b2", "#db2777", "#65a30d", "#ea580c", "#6366f1",
-    "#0d9488", "#9333ea",
-]
-
-BUDGET_GUIDE = {           # recommended % of income
-    "Rent":          30,
-    "Groceries":     12,
-    "Eating Out":     5,
-    "Transport":      5,
-    "Subscriptions":  3,
-    "Shopping":       5,
-    "Health":         5,
-    "Utilities":      6,
-}
+FIXED_CATS    = {"Rent","Childcare","Insurance","Utilities","Phone","Internet","Car Expenses"}
+BUDGET_GUIDE  = {"Rent":30,"Groceries":12,"Eating Out":5,"Transport":5,
+                 "Subscriptions":3,"Shopping":5,"Health":5,"Utilities":6}
+TREEMAP_SCALE = ["#fef0eb","#f5c4ab","#ec996b","#e06d35","#c8501a","#8c300a"]
+DAY_ORDER     = ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"]
 
 # ══════════════════════════════════════════════════════════
-#  STYLES
+#  CSS  — Syne display font · DM Sans body · warm cream canvas
 # ══════════════════════════════════════════════════════════
 st.markdown("""
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Sans:ital,wght@0,300;0,400;0,500;0,600;1,400&display=swap');
 
-html, body, [class*="css"] { font-family: 'Inter', sans-serif; }
+/* ── Reset ── */
+html,body,[class*="css"]{font-family:'DM Sans',sans-serif;}
 
-[data-testid="stAppViewContainer"] { background: #f0f4f8; }
-[data-testid="stSidebar"]          { background: #0f172a !important; }
-[data-testid="stSidebar"] *        { color: #e2e8f0 !important; }
-[data-testid="stSidebar"] label    { color:#94a3b8 !important; font-size:11px !important;
-                                     text-transform:uppercase; letter-spacing:.06em; }
+/* ── Canvas ── */
+[data-testid="stAppViewContainer"]{background:#f0ebe4;}
+.block-container{padding:1.4rem 2.6rem 4rem;max-width:1480px;}
 
-.block-container { padding-top:1.4rem; padding-bottom:3rem; max-width:1440px; }
+/* ── Sidebar ── */
+[data-testid="stSidebar"]{background:#16110d!important;border-right:none!important;}
+[data-testid="stSidebar"] *{color:#e0d5ca!important;}
+[data-testid="stSidebar"] label{
+    color:#7a6e64!important;font-size:10px!important;
+    font-family:'DM Sans',sans-serif!important;
+    text-transform:uppercase;letter-spacing:.08em;}
+[data-testid="stSidebar"] .stButton>button{
+    background:#e06d35!important;border:none!important;color:#fff!important;
+    border-radius:12px!important;font-weight:600!important;letter-spacing:.02em;}
+[data-testid="stSidebar"] .stDownloadButton>button{
+    background:#2a2018!important;border:1px solid #3a3025!important;
+    color:#c8bcb0!important;border-radius:12px!important;}
 
-/* ── Hero ── */
-.hero {
-    background: linear-gradient(135deg, #0f172a 0%, #1e3a8a 60%, #2563eb 100%);
-    padding: 38px 44px; border-radius: 24px; color: white;
-    margin-bottom: 22px; position: relative; overflow: hidden;
+/* ── Verdict banner ── */
+.verdict{
+    border-radius:28px;padding:38px 48px;
+    margin-bottom:24px;position:relative;overflow:hidden;
+    display:flex;align-items:center;gap:48px;
 }
-.hero::before {
-    content:""; position:absolute; top:-80px; right:-80px;
-    width:320px; height:320px; border-radius:50%;
-    background:rgba(255,255,255,.05);
+.verdict::before{
+    content:'';position:absolute;right:-60px;top:-60px;
+    width:300px;height:300px;border-radius:50%;
+    background:rgba(255,255,255,.06);
 }
-.hero::after {
-    content:""; position:absolute; bottom:-40px; right:160px;
-    width:180px; height:180px; border-radius:50%;
-    background:rgba(255,255,255,.03);
+.v-score{
+    font-family:'Syne',sans-serif;
+    font-size:108px;font-weight:800;line-height:.85;
+    letter-spacing:-5px;flex-shrink:0;
 }
-.hero h1  { font-size:36px; font-weight:800; margin:0 0 6px; }
-.hero p   { font-size:15px; color:#bfdbfe; margin:0 0 4px; }
-.hero-tag {
-    display:inline-block; background:rgba(255,255,255,.12);
-    border:1px solid rgba(255,255,255,.2); color:#e0f2fe;
-    padding:4px 14px; border-radius:99px; font-size:12px;
-    font-weight:600; margin-top:12px;
-}
+.v-right{}
+.v-label{font-size:12px;font-weight:600;letter-spacing:.12em;
+          text-transform:uppercase;opacity:.7;margin-bottom:6px;}
+.v-title{font-family:'Syne',sans-serif;font-size:26px;
+          font-weight:800;line-height:1.25;color:#fff;margin-bottom:8px;}
+.v-sub{font-size:14px;line-height:1.6;opacity:.75;color:#fff;max-width:480px;}
 
-/* ── Cards ── */
-.card {
-    background:#fff; padding:22px; border-radius:20px;
-    border:1px solid #e5e7eb;
-    box-shadow:0 2px 8px rgba(0,0,0,.05);
-    margin-bottom:14px;
+/* ── KPI strip ── */
+.kpi{
+    background:#fff;border-radius:22px;
+    padding:22px 24px 18px;
+    box-shadow:0 2px 0 rgba(0,0,0,.04),0 6px 20px rgba(42,28,14,.08);
+    margin-bottom:16px;
 }
-.kpi-card {
-    background:#fff; padding:20px 22px; border-radius:18px;
-    border:1px solid #e5e7eb;
-    box-shadow:0 2px 8px rgba(0,0,0,.05); margin-bottom:14px;
-}
-.kpi-label { color:#6b7280; font-size:11px; font-weight:600;
-             text-transform:uppercase; letter-spacing:.06em; margin-bottom:4px; }
-.kpi-value { color:#111827; font-size:28px; font-weight:800; line-height:1.1; }
-.kpi-delta { font-size:12px; margin-top:5px; }
-.delta-up   { color:#059669; font-weight:600; }
-.delta-down { color:#dc2626; font-weight:600; }
-.delta-neu  { color:#9ca3af; }
+.kpi-label{font-size:10px;font-weight:700;text-transform:uppercase;
+           letter-spacing:.09em;color:#b8a898;margin-bottom:6px;font-family:'DM Sans',sans-serif;}
+.kpi-value{font-family:'Syne',sans-serif;font-size:28px;font-weight:800;
+           line-height:1.05;letter-spacing:-.5px;}
+.kpi-delta{font-size:12px;margin-top:6px;font-weight:500;}
+.up{color:#1a9e75;}.down{color:#d94838;}.neu{color:#c0b6ae;}
 
-/* ── Section headers ── */
-.sh { font-size:17px; font-weight:700; color:#111827; margin:4px 0 14px; }
-
-/* ── Score badge ── */
-.badge {
-    display:inline-block; padding:4px 14px; border-radius:99px;
-    font-size:13px; font-weight:700; margin-top:2px;
+/* ── Section label ── */
+.sec{
+    font-family:'Syne',sans-serif;
+    font-size:14px;font-weight:800;letter-spacing:.04em;
+    text-transform:uppercase;color:#8c7c6c;
+    margin:0 0 14px;display:flex;align-items:center;gap:8px;
 }
-.badge-excellent { background:#d1fae5; color:#065f46; }
-.badge-healthy   { background:#dbeafe; color:#1e40af; }
-.badge-attention { background:#fef3c7; color:#92400e; }
-.badge-risk      { background:#fee2e2; color:#991b1b; }
+.sec::after{content:'';flex:1;height:1px;background:#e0d8cf;}
+
+/* ── Chart card ── */
+.cc{
+    background:#fff;border-radius:22px;
+    padding:22px 22px 8px;
+    box-shadow:0 2px 0 rgba(0,0,0,.04),0 6px 20px rgba(42,28,14,.08);
+    margin-bottom:16px;
+}
 
 /* ── Insight / Action cards ── */
-.insight-card {
-    background:#f8fafc; padding:14px 16px; border-radius:14px;
-    border-left:4px solid #2563eb; margin-bottom:10px;
-    font-size:14px; color:#1e293b; line-height:1.6;
+.ins{
+    background:#faf6f1;border-left:3px solid #e06d35;
+    border-radius:0 14px 14px 0;
+    padding:13px 18px;margin-bottom:10px;
+    font-size:14px;color:#2a1c10;line-height:1.65;
 }
-.action-card {
-    background:#fff; padding:14px 16px; border-radius:14px;
-    border:1px solid #e5e7eb; border-left:4px solid #7c3aed;
-    margin-bottom:10px; box-shadow:0 1px 4px rgba(0,0,0,.04);
+.act{
+    background:#fff;border-radius:16px;padding:14px 18px;
+    margin-bottom:10px;border:1px solid #e8e0d6;
+    box-shadow:0 1px 4px rgba(42,28,14,.05);
+    display:flex;gap:12px;align-items:flex-start;
 }
-.action-num {
-    background:#7c3aed; color:#fff; width:22px; height:22px;
-    border-radius:50%; display:inline-flex;
-    align-items:center; justify-content:center;
-    font-size:11px; font-weight:800; margin-right:8px;
+.act-n{
+    min-width:24px;height:24px;background:#fdeede;color:#c85a10;
+    border-radius:50%;display:flex;align-items:center;justify-content:center;
+    font-size:11px;font-weight:800;font-family:'Syne',sans-serif;flex-shrink:0;margin-top:2px;
+}
+.act-t{font-weight:700;font-size:13.5px;color:#1a1008;margin-bottom:3px;font-family:'Syne',sans-serif;}
+.act-d{font-size:13px;color:#8c7c6c;line-height:1.55;}
+
+/* ── Top-transaction callout ── */
+.txn{
+    background:#fff;border-radius:18px;padding:16px 20px;
+    margin-bottom:10px;border:1px solid #e8e0d6;
+    box-shadow:0 1px 4px rgba(42,28,14,.05);
+}
+.txn-amt{font-family:'Syne',sans-serif;font-size:24px;font-weight:800;
+          color:#d94838;letter-spacing:-.5px;}
+.txn-desc{font-size:13px;font-weight:600;color:#2a1c10;margin:3px 0 2px;}
+.txn-meta{font-size:11px;color:#b8a898;}
+
+/* ── Sub row ── */
+.sub-row{
+    display:flex;justify-content:space-between;align-items:center;
+    padding:11px 0;border-bottom:1px solid #f0e8de;
+}
+.sub-row:last-child{border-bottom:none;}
+.sub-name{font-size:13.5px;font-weight:600;color:#2a1c10;}
+.sub-cat{font-size:11px;color:#b8a898;margin-top:1px;}
+.sub-amt{font-family:'Syne',sans-serif;font-size:16px;font-weight:800;color:#d94838;}
+
+/* ── Split stat ── */
+.split-stat{
+    background:#fff;border-radius:18px;padding:18px 22px;
+    box-shadow:0 2px 0 rgba(0,0,0,.04),0 6px 20px rgba(42,28,14,.08);
+    margin-bottom:10px;display:flex;gap:16px;align-items:center;
+}
+.split-icon{font-size:32px;}
+.split-label{font-size:11px;font-weight:700;text-transform:uppercase;
+              letter-spacing:.08em;color:#b8a898;margin-bottom:4px;}
+.split-val{font-family:'Syne',sans-serif;font-size:22px;font-weight:800;color:#2a1c10;}
+.split-sub{font-size:12px;color:#a09080;margin-top:2px;}
+
+/* ── Privacy / footer ── */
+.privacy{
+    background:#e8e0d6;border-radius:14px;padding:11px 18px;
+    margin-bottom:24px;font-size:12.5px;color:#7a6e64;line-height:1.55;
+}
+.disclaimer{
+    background:#e4dcd2;border-radius:14px;padding:12px 20px;
+    font-size:11px;color:#a09080;text-align:center;margin-top:28px;line-height:1.6;
 }
 
-/* ── Budget bars ── */
-.brow { margin-bottom:13px; }
-.blabel { display:flex; justify-content:space-between;
-          font-size:13px; color:#374151; margin-bottom:4px; }
-.bbar-bg  { background:#e5e7eb; border-radius:99px; height:7px; overflow:hidden; }
-.bbar-fill{ height:100%; border-radius:99px; }
-
-/* ── AI panel ── */
-.ai-card {
-    background:linear-gradient(135deg,#f0f4ff,#faf5ff);
-    border:1px solid #c7d2fe; padding:20px;
-    border-radius:18px; margin-bottom:10px;
-}
-.ai-tag {
-    background:#e0e7ff; color:#4338ca; font-size:10px;
-    font-weight:800; text-transform:uppercase; letter-spacing:.1em;
-    padding:3px 10px; border-radius:99px; margin-bottom:12px;
-    display:inline-block;
-}
-
-/* ── Privacy / Disclaimer ── */
-.privacy {
-    background:#ecfdf5; border:1px solid #a7f3d0;
-    padding:12px 16px; border-radius:14px;
-    margin-bottom:20px; font-size:13px; color:#065f46;
-}
-.disclaimer {
-    background:#f8fafc; border:1px solid #e2e8f0;
-    padding:12px 16px; border-radius:10px;
-    font-size:11px; color:#9ca3af; text-align:center; margin-top:24px;
-}
-
-/* ── Onboarding tiles ── */
-.onboard {
-    text-align:center; padding:32px 20px;
-}
-.onboard .icon { font-size:38px; margin-bottom:10px; }
-.onboard .title{ font-weight:700; font-size:16px; margin-bottom:6px; }
-.onboard .desc { color:#6b7280; font-size:13px; line-height:1.5; }
+/* ── Streamlit fixes ── */
+[data-testid="stFileUploaderDropzone"]{
+    background:#fff!important;border:2px dashed #d4cbbf!important;border-radius:16px!important;}
+[data-testid="stTabs"] [data-baseweb="tab"]{
+    font-family:'DM Sans',sans-serif!important;font-weight:600!important;}
+div[data-testid="stHorizontalBlock"]{gap:16px;}
 </style>
 """, unsafe_allow_html=True)
 
@@ -174,238 +178,209 @@ html, body, [class*="css"] { font-family: 'Inter', sans-serif; }
 # ══════════════════════════════════════════════════════════
 def money(v, signed=False):
     if signed:
-        return f"+${v:,.2f}" if v >= 0 else f"-${abs(v):,.2f}"
+        return f"+${v:,.0f}" if v >= 0 else f"-${abs(v):,.0f}"
     return f"${v:,.2f}"
 
+def moneyf(v):   return f"${v:,.2f}"
 
 def delta_html(curr, prev, invert=False):
-    if prev == 0:
-        return '<span class="delta-neu">—</span>'
+    if prev == 0: return '<span class="neu">—</span>'
     d = (curr - prev) / abs(prev) * 100
-    if invert:
-        cls = "delta-down" if d > 0 else "delta-up"
-        arrow = "▲" if d > 0 else "▼"
-    else:
-        cls = "delta-up" if d > 0 else "delta-down"
-        arrow = "▲" if d > 0 else "▼"
-    return f'<span class="{cls}">{arrow} {abs(d):.1f}% vs prev period</span>'
-
+    cls   = ("down" if d > 0 else "up") if invert else ("up" if d > 0 else "down")
+    arrow = "▲" if d > 0 else "▼"
+    return f'<span class="{cls}">{arrow} {abs(d):.1f}%</span>'
 
 @st.cache_data
 def load_rules():
-    path = os.path.join(os.path.dirname(__file__), "category_rules.csv")
+    path  = os.path.join(os.path.dirname(__file__), "category_rules.csv")
     rules = pd.read_csv(path)
     rules["keyword"] = rules["keyword"].astype(str).str.lower().str.strip()
     return rules
 
-
-def categorise(description, amount, rules):
-    desc = str(description).lower()
+def categorise(desc, amount, rules):
+    d = str(desc).lower()
     for _, r in rules.iterrows():
-        if r["keyword"] in desc:
+        if r["keyword"] in d:
             return r["category"], r["type"]
-    return ("Other Income", "Income") if amount > 0 else ("Other Expense", "Expense")
-
+    return ("Other Income","Income") if amount > 0 else ("Other Expense","Expense")
 
 def score_color(s):
-    return "#059669" if s >= 80 else "#2563eb" if s >= 65 else "#d97706" if s >= 45 else "#dc2626"
+    if s >= 80: return "#2db88a"
+    if s >= 65: return "#5b7cf0"
+    if s >= 45: return "#e09a2e"
+    return "#e05c4e"
 
+def score_bg(s):
+    if s >= 80: return "#082b1a"
+    if s >= 65: return "#0a1830"
+    if s >= 45: return "#28180a"
+    return "#280a08"
 
 def score_meta(s):
-    if s >= 80: return "Excellent",   "badge-excellent"
-    if s >= 65: return "Healthy",     "badge-healthy"
-    if s >= 45: return "Needs Attention", "badge-attention"
-    return "At Risk", "badge-risk"
+    if s >= 80: return "Excellent"
+    if s >= 65: return "Healthy"
+    if s >= 45: return "Needs Attention"
+    return "At Risk"
 
+def verdict_sentence(s, net, sr, top_cat):
+    tc = top_cat or "spending"
+    if s >= 80: return f"You're in great financial shape — saving {sr:.0f}% of your income and staying well within budget."
+    if s >= 65: return f"Your finances are healthy. Keeping an eye on {tc} will help you improve further."
+    if s >= 45: return f"A few things need attention. Focusing on {tc} will have the biggest impact."
+    return "Your spending is outpacing your income right now. Let's look at where to start." if net < 0 \
+        else "There are some areas under pressure — small changes can make a real difference."
 
-def calc_score(income, expense, net, savings_rate, sub_total):
+def calc_score(income, expense, net, sr, sub_total):
     s = 0
     if income > 0:    s += 20
     if net > 0:       s += 25
-    if savings_rate >= 20: s += 25
-    elif savings_rate >= 10: s += 15
-    elif savings_rate > 0:   s += 8
-    ratio = expense / income if income > 0 else 1
-    if ratio <= 0.75: s += 15
-    elif ratio <= 0.90: s += 8
-    sub_r = sub_total / income if income > 0 else 0
-    if sub_r <= 0.03: s += 15
-    elif sub_r <= 0.06: s += 8
+    if sr >= 20:      s += 25
+    elif sr >= 10:    s += 15
+    elif sr > 0:      s += 8
+    r = expense / income if income > 0 else 1
+    if r <= 0.75:     s += 15
+    elif r <= 0.90:   s += 8
+    sr2 = sub_total / income if income > 0 else 0
+    if sr2 <= 0.03:   s += 15
+    elif sr2 <= 0.06: s += 8
     return min(s, 100)
 
-
-def get_ai_insights(api_key: str, summary: str) -> str | None:
+def get_ai_insights(api_key, summary):
     try:
-        resp = requests.post(
+        r = requests.post(
             "https://api.anthropic.com/v1/messages",
-            headers={
-                "x-api-key": api_key,
-                "content-type": "application/json",
-                "anthropic-version": "2023-06-01",
-            },
-            json={
-                "model": "claude-sonnet-4-20250514",
-                "max_tokens": 600,
-                "messages": [{
-                    "role": "user",
-                    "content": (
-                        "You are a friendly, plain-English personal finance coach helping everyday people — "
-                        "not finance experts — understand their money.\n\n"
-                        "Based on the financial summary below, write exactly 4 short, specific, actionable insights. "
-                        "Rules:\n"
-                        "- Each starts with a relevant emoji\n"
-                        "- 1–2 sentences max in simple language\n"
-                        "- Reference actual dollar amounts or percentages where helpful\n"
-                        "- Be encouraging but honest\n"
-                        "- No intro sentence, no outro — just the 4 bullet points\n\n"
-                        f"Financial Summary:\n{summary}"
-                    ),
-                }],
-            },
-            timeout=15,
-        )
-        if resp.status_code == 200:
-            return resp.json()["content"][0]["text"]
+            headers={"x-api-key":api_key,"content-type":"application/json",
+                     "anthropic-version":"2023-06-01"},
+            json={"model":"claude-sonnet-4-20250514","max_tokens":600,
+                  "messages":[{"role":"user","content":(
+                      "You are a warm personal finance coach for everyday people.\n"
+                      "Write exactly 4 short insights from the summary below.\n"
+                      "Rules: start each with a relevant emoji · max 2 plain sentences · "
+                      "mention actual numbers · be honest and encouraging · no intro/outro.\n\n"
+                      f"Summary:\n{summary}")}]},
+            timeout=15)
+        if r.status_code == 200:
+            return r.json()["content"][0]["text"]
     except Exception:
         pass
     return None
 
+def base_layout(h=360, **kw):
+    return dict(
+        height=h,
+        paper_bgcolor="#ffffff", plot_bgcolor="#ffffff",
+        font={"family":"'DM Sans',sans-serif","color":"#5a4e42"},
+        margin=dict(t=14,b=28,l=4,r=4),
+        **kw)
 
-# ══════════════════════════════════════════════════════════
-#  HERO
-# ══════════════════════════════════════════════════════════
-st.markdown("""
-<div class="hero">
-  <h1>💰 Money Health Agent</h1>
-  <p>Upload your bank statement and instantly see where your money goes,
-     how healthy your finances are, and exactly what to do next.</p>
-  <p style="color:#93c5fd;font-size:13px">Built for everyday people — no finance background needed.</p>
-  <span class="hero-tag">✨ Powered by AI insights</span>
-</div>
-""", unsafe_allow_html=True)
-
-st.markdown("""
-<div class="privacy">
-  🔒 <b>Your data stays private.</b> Your file is processed only within your browser session —
-  never stored, never shared. This tool is for personal education and tracking, not financial advice.
-</div>
-""", unsafe_allow_html=True)
-
-# ══════════════════════════════════════════════════════════
-#  UPLOAD
-# ══════════════════════════════════════════════════════════
-uploaded_file = st.file_uploader(
-    "Upload your bank statement (CSV)",
-    type=["csv"],
-    help="CSV must have columns: Date, Description, Amount",
-)
-
-if uploaded_file is None:
-    c1, c2, c3 = st.columns(3)
-    tiles = [
-        ("📂", "Upload Your CSV", "Export a CSV from your bank's app or internet banking portal."),
-        ("⚡", "Instant Categorisation", "Every transaction is labelled in seconds — groceries, rent, transport, and more."),
-        ("🎯", "Actionable Insights", "Get a plain-English summary and personalised steps to improve your finances."),
-    ]
-    for col, (icon, title, desc) in zip([c1, c2, c3], tiles):
-        with col:
-            st.markdown(f"""
-            <div class="card onboard">
-              <div class="icon">{icon}</div>
-              <div class="title">{title}</div>
-              <div class="desc">{desc}</div>
-            </div>""", unsafe_allow_html=True)
-    st.stop()
-
-
-# ══════════════════════════════════════════════════════════
-#  LOAD & CLEAN DATA
-# ══════════════════════════════════════════════════════════
-rules = load_rules()
-
-try:
-    raw = uploaded_file.read()
-    df  = pd.read_csv(io.BytesIO(raw), encoding="utf-8-sig")
-except Exception:
-    st.error("Could not read your file. Please make sure it is a valid UTF-8 CSV.")
-    st.stop()
-
-df.columns = df.columns.str.strip()
-
-# Flexible column detection
-col_map = {}
-for col in df.columns:
-    cl = col.lower().strip()
-    if cl in ["date", "transaction date", "trans date", "value date", "posting date"]:
-        col_map["Date"] = col
-    elif cl in ["description", "details", "narration", "narrative", "memo", "reference", "particulars"]:
-        col_map["Description"] = col
-    elif cl in ["amount", "debit/credit", "value", "net amount", "transaction amount"]:
-        col_map["Amount"] = col
-
-if len(col_map) < 3:
-    st.error(
-        f"Couldn't detect required columns. Need: **Date, Description, Amount**. "
-        f"Your columns: {df.columns.tolist()}"
-    )
-    st.stop()
-
-df = df.rename(columns={v: k for k, v in col_map.items()})
-keep = ["Date", "Description", "Amount"]
-extra = [c for c in df.columns if c not in keep]
-df = df[keep + extra]
-
-df["Date"]   = pd.to_datetime(df["Date"], errors="coerce", dayfirst=True)
-df["Amount"] = (
-    df["Amount"].astype(str)
-    .str.replace(r"[\$,\s]",    "",    regex=True)
-    .str.replace(r"\((.+?)\)", r"-\1", regex=True)
-    .pipe(pd.to_numeric, errors="coerce")
-)
-df = df.dropna(subset=["Date", "Amount"]).sort_values("Date")
-
-df[["Category", "Type"]] = df.apply(
-    lambda r: pd.Series(categorise(r["Description"], r["Amount"], rules)), axis=1
-)
-df["Month"] = df["Date"].dt.to_period("M").astype(str)
-df["Day"]   = df["Date"].dt.date
+def ax(grid=True):
+    base = dict(title="", zeroline=False, linecolor="#ddd4c8")
+    if grid: base.update(showgrid=True, gridcolor="#f4ede4", gridwidth=1)
+    else:    base.update(showgrid=False)
+    return base
 
 
 # ══════════════════════════════════════════════════════════
 #  SIDEBAR
 # ══════════════════════════════════════════════════════════
 with st.sidebar:
-    st.markdown("### 🔍 Filters")
-    month_opts = ["All"] + sorted(df["Month"].unique())
-    sel_month  = st.selectbox("Month", month_opts)
-
-    cat_opts  = ["All"] + sorted(df["Category"].unique())
-    sel_cat   = st.selectbox("Category", cat_opts)
-
+    st.markdown("### Filters")
+    _month_ph = st.empty()
+    _cat_ph   = st.empty()
     st.markdown("---")
-    st.markdown("### ✨ AI Insights (optional)")
-    api_key_input = st.text_input(
-        "Anthropic API Key",
-        type="password",
-        placeholder="sk-ant-...",
-        help="Get a key at console.anthropic.com. Never stored.",
-    )
-    run_ai = st.button("Generate AI Insights", use_container_width=True)
-
+    st.markdown("### AI Coach")
+    api_key = st.text_input("Anthropic API Key", type="password",
+                             placeholder="sk-ant-…",
+                             help="Optional — get one at console.anthropic.com")
+    run_ai  = st.button("✦ Generate Insights", use_container_width=True)
     st.markdown("---")
-    st.markdown("### 📥 Export")
-    csv_bytes = df.to_csv(index=False).encode("utf-8")
-    st.download_button(
-        label="⬇ Download Categorised CSV",
-        data=csv_bytes,
-        file_name="money_health_categorised.csv",
-        mime="text/csv",
-        use_container_width=True,
-    )
+    st.markdown("### Export")
+    _export_ph = st.empty()
 
 
 # ══════════════════════════════════════════════════════════
-#  FILTER
+#  UPLOAD
+# ══════════════════════════════════════════════════════════
+st.markdown("""
+<div class="privacy">
+  🔒 <b>Privacy:</b> Your file is processed only in this browser session — never stored or shared.
+  For personal tracking only, not financial advice.
+</div>
+""", unsafe_allow_html=True)
+
+up = st.file_uploader("Upload your bank statement CSV",type=["csv"],
+                       help="Needs: Date · Description · Amount columns")
+
+if up is None:
+    c1,c2,c3 = st.columns(3)
+    for col,(icon,title,desc) in zip([c1,c2,c3],[
+        ("📂","Upload a CSV","Export from your bank's app — any CSV with Date, Description, and Amount columns."),
+        ("⚡","Instant Categorisation","Every transaction auto-labelled: groceries, rent, subscriptions, transport, and more."),
+        ("🎯","Personalised Actions","Plain-English summary and specific steps — no jargon, no complexity."),
+    ]):
+        with col:
+            st.markdown(f"""
+            <div style="background:#fff;border-radius:22px;padding:34px 26px;text-align:center;
+                        border:1px solid #ddd4c8;box-shadow:0 6px 20px rgba(42,28,14,.07)">
+              <div style="font-size:38px;margin-bottom:14px">{icon}</div>
+              <div style="font-family:Syne,sans-serif;font-size:15px;font-weight:800;
+                          color:#1a1008;margin-bottom:8px">{title}</div>
+              <div style="font-size:13px;color:#9a8e82;line-height:1.6">{desc}</div>
+            </div>""", unsafe_allow_html=True)
+    st.stop()
+
+
+# ══════════════════════════════════════════════════════════
+#  LOAD & CLEAN
+# ══════════════════════════════════════════════════════════
+rules = load_rules()
+try:
+    df = pd.read_csv(io.BytesIO(up.read()), encoding="utf-8-sig")
+except Exception:
+    st.error("Could not read the file. Please upload a valid UTF-8 CSV.")
+    st.stop()
+
+df.columns = df.columns.str.strip()
+col_map = {}
+for col in df.columns:
+    cl = col.lower().strip()
+    if cl in ["date","transaction date","trans date","value date","posting date"]:
+        col_map["Date"] = col
+    elif cl in ["description","details","narration","narrative","memo","reference","particulars"]:
+        col_map["Description"] = col
+    elif cl in ["amount","debit/credit","value","net amount","transaction amount"]:
+        col_map["Amount"] = col
+
+if len(col_map) < 3:
+    st.error(f"Need columns: Date, Description, Amount. Found: {df.columns.tolist()}")
+    st.stop()
+
+df = df.rename(columns={v:k for k,v in col_map.items()})
+extra = [c for c in df.columns if c not in ["Date","Description","Amount"]]
+df = df[["Date","Description","Amount"]+extra]
+df["Date"]   = pd.to_datetime(df["Date"], errors="coerce", dayfirst=True)
+df["Amount"] = (df["Amount"].astype(str)
+                .str.replace(r"[\$,\s]","",regex=True)
+                .str.replace(r"\((.+?)\)",r"-\1",regex=True)
+                .pipe(pd.to_numeric, errors="coerce"))
+df = df.dropna(subset=["Date","Amount"]).sort_values("Date")
+df[["Category","Type"]] = df.apply(
+    lambda r: pd.Series(categorise(r["Description"], r["Amount"], rules)), axis=1)
+df["Month"] = df["Date"].dt.to_period("M").astype(str)
+df["Day"]   = df["Date"].dt.date
+df["DOW"]   = df["Date"].dt.strftime("%a")
+
+# Fill sidebar filters now that df is loaded
+sel_month = _month_ph.selectbox("Month", ["All"]+sorted(df["Month"].unique()))
+sel_cat   = _cat_ph.selectbox("Category", ["All"]+sorted(df["Category"].unique()))
+_export_ph.download_button("⬇ Download Categorised CSV",
+    data=df.to_csv(index=False).encode("utf-8"),
+    file_name="money_health_transactions.csv", mime="text/csv",
+    use_container_width=True)
+
+
+# ══════════════════════════════════════════════════════════
+#  METRICS
 # ══════════════════════════════════════════════════════════
 fdf = df.copy()
 if sel_month != "All": fdf = fdf[fdf["Month"] == sel_month]
@@ -419,399 +394,461 @@ total_expense = abs(exp_df["Amount"].sum())
 net           = total_income - total_expense
 savings_rate  = (net / total_income * 100) if total_income > 0 else 0
 
-exp_summary = (
-    exp_df.groupby("Category")["Amount"].sum().abs()
-    .reset_index().rename(columns={"Amount": "Total"})
-    .sort_values("Total", ascending=False)
-)
-sub_total    = exp_df[exp_df["Category"].isin(["Subscription", "Subscriptions"])]["Amount"].abs().sum()
-health_score = calc_score(total_income, total_expense, net, savings_rate, sub_total)
-s_label, s_class = score_meta(health_score)
+exp_summary = (exp_df.groupby("Category")["Amount"].sum().abs()
+               .reset_index().rename(columns={"Amount":"Total"})
+               .sort_values("Total", ascending=False))
 
-# Previous period for deltas
+sub_total    = exp_df[exp_df["Category"].isin(["Subscription","Subscriptions"])]["Amount"].abs().sum()
+fixed_total  = exp_df[exp_df["Category"].isin(FIXED_CATS)]["Amount"].abs().sum()
+flex_total   = total_expense - fixed_total
+health_score = calc_score(total_income, total_expense, net, savings_rate, sub_total)
+s_label      = score_meta(health_score)
+top_cat      = exp_summary.iloc[0]["Category"] if not exp_summary.empty else None
+
+# Previous period
 all_months = sorted(df["Month"].unique())
 if sel_month != "All" and sel_month in all_months:
     idx  = all_months.index(sel_month)
-    prev = df[df["Month"] == all_months[idx - 1]] if idx > 0 else pd.DataFrame()
+    prev = df[df["Month"] == all_months[idx-1]] if idx > 0 else pd.DataFrame()
 else:
     prev = pd.DataFrame()
 
-prev_inc = prev[prev["Type"] == "Income"]["Amount"].sum() if not prev.empty else 0
-prev_exp = abs(prev[prev["Type"] == "Expense"]["Amount"].sum()) if not prev.empty else 0
+prev_inc = prev[prev["Type"]=="Income"]["Amount"].sum() if not prev.empty else 0
+prev_exp = abs(prev[prev["Type"]=="Expense"]["Amount"].sum()) if not prev.empty else 0
 prev_net = prev_inc - prev_exp
 
 
 # ══════════════════════════════════════════════════════════
-#  ROW 1 — KPI CARDS
+#  §0  VERDICT BANNER
 # ══════════════════════════════════════════════════════════
-st.markdown('<p class="sh">📊 Financial Overview</p>', unsafe_allow_html=True)
-c0, c1, c2, c3, c4 = st.columns([1.5, 1, 1, 1, 1])
+sc = score_color(health_score)
+bg = score_bg(health_score)
+vtext = verdict_sentence(health_score, net, savings_rate, top_cat)
 
-with c0:
-    gauge = go.Figure(go.Indicator(
-        mode="gauge+number",
-        value=health_score,
-        domain={"x": [0, 1], "y": [0, 1]},
-        number={"suffix": "/100", "font": {"size": 28, "color": "#111827", "family": "Inter"}},
-        gauge={
-            "axis": {"range": [0, 100], "tickfont": {"size": 9}, "tickwidth": 1, "tickcolor": "#d1d5db"},
-            "bar":  {"color": score_color(health_score), "thickness": 0.28},
-            "bgcolor": "white",
-            "borderwidth": 0,
-            "steps": [
-                {"range": [0, 45],   "color": "#fef2f2"},
-                {"range": [45, 65],  "color": "#fffbeb"},
-                {"range": [65, 80],  "color": "#eff6ff"},
-                {"range": [80, 100], "color": "#f0fdf4"},
-            ],
-        }
+st.markdown(f"""
+<div class="verdict" style="background:{bg}">
+  <div class="v-score" style="color:{sc}">{health_score}</div>
+  <div class="v-right">
+    <div class="v-label">Money Health Score &nbsp;·&nbsp; {s_label}</div>
+    <div class="v-title">{vtext}</div>
+    <div class="v-sub">
+      Income <b>{moneyf(total_income)}</b> &nbsp;·&nbsp;
+      Expenses <b>{moneyf(total_expense)}</b> &nbsp;·&nbsp;
+      Saved <b>{money(net, signed=True)}</b>
+    </div>
+  </div>
+</div>
+""", unsafe_allow_html=True)
+
+
+# ══════════════════════════════════════════════════════════
+#  §1  KPI STRIP
+# ══════════════════════════════════════════════════════════
+k1,k2,k3,k4 = st.columns(4)
+
+fixed_pct = (fixed_total / total_expense * 100) if total_expense > 0 else 0
+flex_pct  = 100 - fixed_pct
+avg_daily = total_expense / max(len(exp_df["Day"].unique()), 1)
+txn_count = len(fdf)
+
+with k1:
+    nc = "#1a9e75" if net >= 0 else "#d94838"
+    st.markdown(f"""
+    <div class="kpi">
+      <div class="kpi-label">Money Left Over</div>
+      <div class="kpi-value" style="color:{nc}">{money(net,signed=True)}</div>
+      <div class="kpi-delta">{delta_html(net,prev_net)} vs last period</div>
+    </div>""", unsafe_allow_html=True)
+
+with k2:
+    src = "#1a9e75" if savings_rate>=20 else "#e09a2e" if savings_rate>=10 else "#d94838"
+    st.markdown(f"""
+    <div class="kpi">
+      <div class="kpi-label">Savings Rate</div>
+      <div class="kpi-value" style="color:{src}">{savings_rate:.1f}%</div>
+      <div class="kpi-delta"><span class="neu">Goal: 20% · You're at {savings_rate:.0f}%</span></div>
+    </div>""", unsafe_allow_html=True)
+
+with k3:
+    st.markdown(f"""
+    <div class="kpi">
+      <div class="kpi-label">Avg Daily Spend</div>
+      <div class="kpi-value" style="color:#2a1c10">{moneyf(avg_daily)}</div>
+      <div class="kpi-delta"><span class="neu">Across {len(exp_df["Day"].unique())} spending days</span></div>
+    </div>""", unsafe_allow_html=True)
+
+with k4:
+    fc = "#d94838" if flex_pct > 50 else "#e09a2e" if flex_pct > 35 else "#1a9e75"
+    st.markdown(f"""
+    <div class="kpi">
+      <div class="kpi-label">Flexible Spending</div>
+      <div class="kpi-value" style="color:{fc}">{flex_pct:.0f}%</div>
+      <div class="kpi-delta"><span class="neu">{moneyf(flex_total)} of {moneyf(total_expense)} is cuttable</span></div>
+    </div>""", unsafe_allow_html=True)
+
+
+# ══════════════════════════════════════════════════════════
+#  §2  CASHFLOW WATERFALL  +  FIXED vs FLEXIBLE
+# ══════════════════════════════════════════════════════════
+st.markdown('<p class="sec">💧 Where Did the Money Go?</p>', unsafe_allow_html=True)
+w1, w2 = st.columns([1.6, 1])
+
+with w1:
+    # Waterfall: income → each category → net
+    cats   = exp_summary["Category"].head(9).tolist()
+    vals   = (-exp_summary["Total"].head(9)).tolist()
+    others = -(total_expense - exp_summary["Total"].head(9).sum())
+    if abs(others) > 1:
+        cats.append("Other"); vals.append(others)
+    x_all = ["Income"] + cats + ["Net"]
+    y_all = [total_income] + vals + [0]
+    m_all = ["absolute"] + ["relative"]*len(cats) + ["total"]
+    labels = [moneyf(total_income)] + [f"-{moneyf(abs(v))}" for v in vals] + [money(net,signed=True)]
+
+    wf = go.Figure(go.Waterfall(
+        orientation="v", measure=m_all,
+        x=x_all, y=y_all,
+        text=labels, textposition="outside",
+        textfont={"size":10,"family":"'DM Sans',sans-serif"},
+        connector={"line":{"color":"#e8ddd2","width":1}},
+        increasing={"marker":{"color":"#2db88a","line":{"width":0}}},
+        decreasing={"marker":{"color":"#e86858","line":{"width":0}}},
+        totals={"marker":{"color":"#5b7cf0","line":{"width":0}}},
     ))
-    gauge.update_layout(
-        height=170, margin=dict(t=16, b=6, l=14, r=14),
-        paper_bgcolor="white", font={"family": "Inter"},
+    wf.update_layout(
+        **base_layout(h=400),
+        showlegend=False,
+        xaxis={**ax(False),"tickfont":{"size":11}},
+        yaxis={**ax(),"tickprefix":"$"},
     )
-    st.markdown('<div class="kpi-card">', unsafe_allow_html=True)
-    st.markdown('<div class="kpi-label">Money Health Score</div>', unsafe_allow_html=True)
-    st.plotly_chart(gauge, use_container_width=True, config={"displayModeBar": False})
-    st.markdown(f'<span class="badge {s_class}">{s_label}</span>', unsafe_allow_html=True)
+    st.markdown('<div class="cc">', unsafe_allow_html=True)
+    st.plotly_chart(wf, use_container_width=True, config={"displayModeBar":False})
     st.markdown('</div>', unsafe_allow_html=True)
 
-with c1:
-    st.markdown(f"""
-    <div class="kpi-card">
-      <div class="kpi-label">💵 Total Income</div>
-      <div class="kpi-value" style="color:#059669">{money(total_income)}</div>
-      <div class="kpi-delta">{delta_html(total_income, prev_inc)}</div>
-    </div>""", unsafe_allow_html=True)
-
-with c2:
-    st.markdown(f"""
-    <div class="kpi-card">
-      <div class="kpi-label">💸 Total Expenses</div>
-      <div class="kpi-value" style="color:#dc2626">{money(total_expense)}</div>
-      <div class="kpi-delta">{delta_html(total_expense, prev_exp, invert=True)}</div>
-    </div>""", unsafe_allow_html=True)
-
-with c3:
-    nc = "#059669" if net >= 0 else "#dc2626"
-    st.markdown(f"""
-    <div class="kpi-card">
-      <div class="kpi-label">🏦 Money Left</div>
-      <div class="kpi-value" style="color:{nc}">{money(net, signed=True)}</div>
-      <div class="kpi-delta">{delta_html(net, prev_net)}</div>
-    </div>""", unsafe_allow_html=True)
-
-with c4:
-    src = "#059669" if savings_rate >= 20 else "#d97706" if savings_rate >= 10 else "#dc2626"
-    st.markdown(f"""
-    <div class="kpi-card">
-      <div class="kpi-label">🎯 Savings Rate</div>
-      <div class="kpi-value" style="color:{src}">{savings_rate:.1f}%</div>
-      <div class="kpi-delta"><span class="delta-neu">Target ≥ 20%</span></div>
-    </div>""", unsafe_allow_html=True)
-
-
-# ══════════════════════════════════════════════════════════
-#  ROW 2 — TREND + DONUT
-# ══════════════════════════════════════════════════════════
-st.markdown("---")
-left, right = st.columns([1.45, 1])
-
-with left:
-    st.markdown('<p class="sh">📈 Income vs Expenses Over Time</p>', unsafe_allow_html=True)
-    monthly = df.groupby(["Month", "Type"])["Amount"].sum().reset_index()
-    monthly["Display"] = monthly.apply(
-        lambda r: abs(r["Amount"]) if r["Type"] == "Expense" else r["Amount"], axis=1
-    )
-    fig_bar = px.bar(
-        monthly, x="Month", y="Display", color="Type",
-        barmode="group", text_auto=".2s",
-        color_discrete_map={"Income": "#059669", "Expense": "#ef4444"},
-    )
-    fig_bar.update_traces(textfont_size=10, textposition="outside", marker_line_width=0, opacity=.88)
-    fig_bar.update_layout(
-        height=370, legend_title="",
-        paper_bgcolor="white", plot_bgcolor="white",
-        margin=dict(t=16, b=40, l=0, r=0),
-        font={"family": "Inter"},
-        xaxis=dict(showgrid=False, title=""),
-        yaxis=dict(showgrid=True, gridcolor="#f3f4f6", title=""),
-    )
-    st.plotly_chart(fig_bar, use_container_width=True, config={"displayModeBar": False})
-
-with right:
-    st.markdown('<p class="sh">🍩 Spending by Category</p>', unsafe_allow_html=True)
-    if not exp_summary.empty:
-        fig_pie = px.pie(
-            exp_summary, names="Category", values="Total",
-            hole=.5, color_discrete_sequence=CATEGORY_COLORS,
+with w2:
+    # Fixed vs Flexible donut — tells a different story than "donut by category"
+    if total_expense > 0:
+        fvf_df = pd.DataFrame({
+            "Type":   ["Fixed Bills","Flexible Spending"],
+            "Amount": [fixed_total, flex_total],
+        })
+        fvf = px.pie(fvf_df, names="Type", values="Amount", hole=.58,
+                     color_discrete_sequence=["#5b7cf0","#e86858"])
+        fvf.update_traces(textposition="inside", textinfo="percent+label",
+                          textfont_size=12, pull=[0,.03])
+        fvf.update_layout(
+            **base_layout(h=260), showlegend=False,
+            margin=dict(t=14,b=10,l=0,r=0),
+            annotations=[dict(text=f"<b>{moneyf(total_expense)}</b><br><span style='font-size:10px'>total spend</span>",
+                              x=.5,y=.5,font_size=13,showarrow=False,
+                              font={"family":"'DM Sans',sans-serif","color":"#2a1c10"})]
         )
-        fig_pie.update_traces(
-            textposition="inside", textinfo="percent+label",
-            textfont_size=11, pull=[.03] * len(exp_summary),
-        )
-        fig_pie.update_layout(
-            height=370, showlegend=False,
-            paper_bgcolor="white",
-            margin=dict(t=16, b=16, l=0, r=0),
-            font={"family": "Inter"},
-        )
-        st.plotly_chart(fig_pie, use_container_width=True, config={"displayModeBar": False})
-    else:
-        st.info("No expense data to display.")
+        st.markdown('<div class="cc"><div style="font-family:Syne,sans-serif;font-size:13px;'
+                    'font-weight:800;color:#2a1c10;margin-bottom:6px">Fixed vs Flexible</div>',
+                    unsafe_allow_html=True)
+        st.plotly_chart(fvf, use_container_width=True, config={"displayModeBar":False})
+        st.markdown('</div>', unsafe_allow_html=True)
 
-
-# ══════════════════════════════════════════════════════════
-#  ROW 3 — TOP SPENDING + BUDGET CHECK
-# ══════════════════════════════════════════════════════════
-left2, right2 = st.columns([1, 1])
-
-with left2:
-    st.markdown('<p class="sh">🔝 Top Spending Categories</p>', unsafe_allow_html=True)
-    if not exp_summary.empty:
-        fig_h = px.bar(
-            exp_summary.head(8), x="Total", y="Category",
-            orientation="h", text_auto=".2s",
-            color="Total", color_continuous_scale=["#dbeafe", "#1e40af"],
-        )
-        fig_h.update_traces(textfont_size=10, textposition="outside", marker_line_width=0)
-        fig_h.update_layout(
-            height=370, coloraxis_showscale=False,
-            paper_bgcolor="white", plot_bgcolor="white",
-            margin=dict(t=10, b=10, l=0, r=50),
-            font={"family": "Inter"},
-            xaxis=dict(showgrid=True, gridcolor="#f3f4f6", title=""),
-            yaxis=dict(categoryorder="total ascending", title=""),
-        )
-        st.plotly_chart(fig_h, use_container_width=True, config={"displayModeBar": False})
-
-with right2:
-    st.markdown('<p class="sh">📋 Budget Health Check</p>', unsafe_allow_html=True)
-    html_rows = ""
-    for cat, rec_pct in BUDGET_GUIDE.items():
-        actual = float(exp_summary[exp_summary["Category"] == cat]["Total"].sum())
-        act_pct = (actual / total_income * 100) if total_income > 0 else 0
-        bar_w   = min(act_pct / rec_pct * 100, 100) if rec_pct > 0 else 0
-        if act_pct > rec_pct:
-            color   = "#ef4444"
-            status  = f"<span style='color:#dc2626;font-size:11px'>⚠ Over ({act_pct:.0f}% / rec {rec_pct}%)</span>"
-        elif act_pct > rec_pct * 0.8:
-            color   = "#f59e0b"
-            status  = f"<span style='color:#d97706;font-size:11px'>⚡ Near limit ({act_pct:.0f}% / rec {rec_pct}%)</span>"
-        else:
-            color   = "#10b981"
-            status  = f"<span style='color:#059669;font-size:11px'>✓ On track ({act_pct:.0f}% / rec {rec_pct}%)</span>"
-
-        html_rows += f"""
-        <div class="brow">
-          <div class="blabel">
-            <span><b>{cat}</b> &mdash; {money(actual)}</span>{status}
-          </div>
-          <div class="bbar-bg">
-            <div class="bbar-fill" style="width:{bar_w:.1f}%;background:{color}"></div>
-          </div>
-        </div>"""
-    st.markdown(f'<div class="card">{html_rows}</div>', unsafe_allow_html=True)
-
-
-# ══════════════════════════════════════════════════════════
-#  ROW 4 — INSIGHTS + ACTIONS
-# ══════════════════════════════════════════════════════════
-st.markdown("---")
-left3, right3 = st.columns([1, 1])
-
-with left3:
-    st.markdown('<p class="sh">💡 Plain-English Insights</p>', unsafe_allow_html=True)
-
-    ai_text = None
-    if run_ai:
-        key = api_key_input.strip() or os.environ.get("ANTHROPIC_API_KEY", "")
-        if key:
-            top_cat = exp_summary.iloc[0]["Category"] if not exp_summary.empty else "N/A"
-            top_amt = money(exp_summary.iloc[0]["Total"]) if not exp_summary.empty else "N/A"
-            summary = (
-                f"- Total Income:         {money(total_income)}\n"
-                f"- Total Expenses:       {money(total_expense)}\n"
-                f"- Net Cashflow:         {money(net, signed=True)}\n"
-                f"- Savings Rate:         {savings_rate:.1f}%\n"
-                f"- Health Score:         {health_score}/100 ({s_label})\n"
-                f"- Largest Expense:      {top_cat} ({top_amt})\n"
-                f"- Subscriptions Total:  {money(sub_total)}\n"
-                f"- Transactions:         {len(fdf)}\n"
-            )
-            with st.spinner("Generating AI insights…"):
-                ai_text = get_ai_insights(key, summary)
-            if ai_text is None:
-                st.warning("AI insights unavailable — check your API key and connection.")
-        else:
-            st.warning("Enter your Anthropic API key in the sidebar to use AI insights.")
-
-    if ai_text:
+    # Budget health — compact, in same column
+    st.markdown('<div class="cc">', unsafe_allow_html=True)
+    st.markdown('<div style="font-family:Syne,sans-serif;font-size:13px;font-weight:800;'
+                'color:#2a1c10;margin-bottom:14px">Budget Check</div>', unsafe_allow_html=True)
+    for cat,rec in list(BUDGET_GUIDE.items())[:5]:
+        act   = float(exp_summary[exp_summary["Category"]==cat]["Total"].sum())
+        ap    = (act/total_income*100) if total_income>0 else 0
+        bw    = min(ap/rec*100,100) if rec>0 else 0
+        fill  = "#e86858" if ap>rec else "#f0b85b" if ap>rec*.8 else "#2db88a"
+        badge = (f'<span style="color:#c03020;font-size:10px;font-weight:700">↑ {ap:.0f}%/{rec}%</span>'
+                 if ap>rec else
+                 f'<span style="color:#8a6000;font-size:10px;font-weight:700">↗ {ap:.0f}%/{rec}%</span>'
+                 if ap>rec*.8 else
+                 f'<span style="color:#1a7a50;font-size:10px;font-weight:700">✓ {ap:.0f}%/{rec}%</span>')
         st.markdown(f"""
-        <div class="ai-card">
-          <span class="ai-tag">✨ Claude AI</span>
-          <div style="font-size:14px;color:#1e293b;line-height:1.75;white-space:pre-line">{ai_text}</div>
+        <div style="margin-bottom:12px">
+          <div style="display:flex;justify-content:space-between;font-size:12.5px;
+                      color:#3a2c20;margin-bottom:4px;font-weight:600">
+            <span>{cat}</span>{badge}
+          </div>
+          <div style="background:#ede4d8;border-radius:99px;height:5px;overflow:hidden">
+            <div style="width:{bw:.0f}%;height:100%;background:{fill};border-radius:99px"></div>
+          </div>
         </div>""", unsafe_allow_html=True)
-    else:
-        # Rule-based fallback insights
-        insights = [
-            f"You earned <b>{money(total_income)}</b> and spent <b>{money(total_expense)}</b> in this period.",
-        ]
-        if net >= 0:
-            insights.append(f"You had <b>{money(net)}</b> left over — great work keeping expenses below income!")
-        else:
-            insights.append(f"You overspent by <b>{money(abs(net))}</b>. Focus on cutting flexible spending first.")
+    st.markdown('</div>', unsafe_allow_html=True)
 
-        if not exp_summary.empty:
-            top = exp_summary.iloc[0]
-            pct = top["Total"] / total_expense * 100 if total_expense > 0 else 0
-            insights.append(f"<b>{top['Category']}</b> is your largest cost at {money(top['Total'])} — {pct:.0f}% of total expenses.")
 
-        if sub_total > 0:
-            insights.append(f"Subscriptions are costing you <b>{money(sub_total)}</b>. Are you using all of them?")
+# ══════════════════════════════════════════════════════════
+#  §3  SPENDING TREEMAP  +  TOP TRANSACTIONS & SUBS
+# ══════════════════════════════════════════════════════════
+st.markdown('<p class="sec">🗂 Spending Breakdown</p>', unsafe_allow_html=True)
+t1, t2 = st.columns([1.5, 1])
 
-        if savings_rate >= 20:
-            insights.append(f"Your savings rate of <b>{savings_rate:.1f}%</b> is excellent — consider investing the surplus.")
-        elif savings_rate < 10 and total_income > 0:
-            insights.append(f"A savings rate of <b>{savings_rate:.1f}%</b> is below the 10–20% target. Small cuts add up fast.")
-
-        for ins in insights:
-            st.markdown(f'<div class="insight-card">{ins}</div>', unsafe_allow_html=True)
-
-        st.markdown(
-            '<div style="font-size:12px;color:#9ca3af;margin-top:6px">'
-            '💡 Add your Anthropic API key in the sidebar for personalised AI coaching.</div>',
-            unsafe_allow_html=True,
+with t1:
+    if not exp_summary.empty:
+        tree = px.treemap(
+            exp_summary, path=["Category"], values="Total",
+            color="Total",
+            color_continuous_scale=TREEMAP_SCALE,
+            custom_data=["Total"],
         )
+        tree.update_traces(
+            texttemplate="<b>%{label}</b><br>$%{value:,.0f}",
+            textfont={"size":13,"family":"'DM Sans',sans-serif"},
+            hovertemplate="<b>%{label}</b><br>$%{value:,.2f}<extra></extra>",
+        )
+        tree.update_layout(
+            **base_layout(h=400),
+            coloraxis_showscale=False,
+            margin=dict(t=14,b=8,l=4,r=4),
+        )
+        st.markdown('<div class="cc">', unsafe_allow_html=True)
+        st.plotly_chart(tree, use_container_width=True, config={"displayModeBar":False})
+        st.markdown('</div>', unsafe_allow_html=True)
 
-with right3:
-    st.markdown('<p class="sh">🚀 Next Best Actions</p>', unsafe_allow_html=True)
+with t2:
+    # Top 3 individual transactions
+    st.markdown('<div style="font-family:Syne,sans-serif;font-size:13px;font-weight:800;'
+                'color:#2a1c10;margin-bottom:10px">Biggest Single Spends</div>',
+                unsafe_allow_html=True)
+    top3 = exp_df.nsmallest(3,"Amount")[["Date","Description","Amount","Category"]].reset_index(drop=True)
+    for _, row in top3.iterrows():
+        st.markdown(f"""
+        <div class="txn">
+          <div class="txn-amt">{moneyf(abs(row.Amount))}</div>
+          <div class="txn-desc">{row.Description}</div>
+          <div class="txn-meta">{row.Date.strftime("%d %b %Y")} &nbsp;·&nbsp; {row.Category}</div>
+        </div>""", unsafe_allow_html=True)
 
-    actions: list[tuple[str, str, str]] = []
+    # Subscriptions list
+    subs_df = (exp_df[exp_df["Category"].isin(["Subscription","Subscriptions"])]
+               .groupby("Description")["Amount"].sum().abs()
+               .reset_index().sort_values("Amount",ascending=False))
+    if not subs_df.empty:
+        st.markdown('<div style="font-family:Syne,sans-serif;font-size:13px;font-weight:800;'
+                    'color:#2a1c10;margin:16px 0 10px">Subscriptions</div>',
+                    unsafe_allow_html=True)
+        rows_html = "".join(
+            f'<div class="sub-row"><div><div class="sub-name">{r.Description}</div></div>'
+            f'<div class="sub-amt">{moneyf(r.Amount)}</div></div>'
+            for _, r in subs_df.iterrows()
+        )
+        total_html = (f'<div style="display:flex;justify-content:space-between;padding:10px 0 2px;'
+                      f'font-weight:700;font-size:13px;color:#8c7c6c">'
+                      f'<span>Total</span>'
+                      f'<span style="font-family:Syne,sans-serif;color:#d94838">{moneyf(sub_total)}</span></div>')
+        st.markdown(
+            f'<div style="background:#fff;border-radius:18px;padding:16px 20px;'
+            f'border:1px solid #e8e0d6;box-shadow:0 1px 4px rgba(42,28,14,.05)">'
+            f'{rows_html}{total_html}</div>',
+            unsafe_allow_html=True)
 
+
+# ══════════════════════════════════════════════════════════
+#  §4  SPENDING PATTERNS — Day of Week  +  Monthly Trend
+# ══════════════════════════════════════════════════════════
+st.markdown('<p class="sec">📅 Spending Patterns</p>', unsafe_allow_html=True)
+p1, p2 = st.columns(2)
+
+with p1:
+    # Day of week bar
+    dow = (exp_df.groupby("DOW")["Amount"].sum().abs()
+           .reindex(DAY_ORDER, fill_value=0).reset_index())
+    peak_day = dow.loc[dow["Amount"].idxmax(),"DOW"]
+    colors   = ["#e06d35" if d==peak_day else "#d4c4b4" for d in dow["DOW"]]
+
+    fig_dow = go.Figure(go.Bar(
+        x=dow["DOW"], y=dow["Amount"],
+        marker_color=colors, marker_line_width=0,
+        text=[f"${v:,.0f}" for v in dow["Amount"]],
+        textposition="outside", textfont={"size":10},
+    ))
+    fig_dow.update_layout(
+        **base_layout(h=320),
+        xaxis={**ax(False),"tickfont":{"size":12}},
+        yaxis={**ax(),"tickprefix":"$"},
+        annotations=[dict(
+            text=f"Most spending on <b>{peak_day}s</b>",
+            x=0.01,y=1.06,xref="paper",yref="paper",
+            showarrow=False,font={"size":12,"color":"#8c7c6c","family":"'DM Sans',sans-serif"}
+        )],
+    )
+    st.markdown('<div class="cc">'
+                '<div style="font-family:Syne,sans-serif;font-size:13px;font-weight:800;'
+                'color:#2a1c10;margin-bottom:6px">When Do You Spend?</div>',
+                unsafe_allow_html=True)
+    st.plotly_chart(fig_dow, use_container_width=True, config={"displayModeBar":False})
+    st.markdown('</div>', unsafe_allow_html=True)
+
+with p2:
+    # Monthly savings rate trend
+    def month_sr(g):
+        inc = g[g["Type"]=="Income"]["Amount"].sum()
+        exp = g[g["Type"]=="Expense"]["Amount"].abs().sum()
+        return (inc-exp)/inc*100 if inc > 0 else 0
+
+    msr = df.groupby("Month").apply(month_sr).reset_index()
+    msr.columns = ["Month","SavingsRate"]
+    msr["Color"] = msr["SavingsRate"].apply(
+        lambda v: "#1a9e75" if v>=20 else "#e09a2e" if v>=10 else "#d94838")
+
+    fig_sr = go.Figure()
+    fig_sr.add_hline(y=20, line_dash="dot", line_color="#c0d8c0", line_width=1.5,
+                     annotation_text="20% goal", annotation_position="right",
+                     annotation_font={"size":10,"color":"#8ca88c"})
+    fig_sr.add_trace(go.Scatter(
+        x=msr["Month"], y=msr["SavingsRate"],
+        mode="lines+markers+text",
+        line=dict(color="#5b7cf0", width=2.5),
+        marker=dict(size=10, color=msr["Color"], line=dict(color="#fff",width=2)),
+        text=[f"{v:.0f}%" for v in msr["SavingsRate"]],
+        textposition="top center",
+        textfont={"size":10,"family":"'DM Sans',sans-serif"},
+        fill="tozeroy", fillcolor="rgba(91,124,240,.07)",
+    ))
+    fig_sr.update_layout(
+        **base_layout(h=320),
+        xaxis={**ax(False),"tickfont":{"size":11}},
+        yaxis={**ax(),"ticksuffix":"%"},
+    )
+    st.markdown('<div class="cc">'
+                '<div style="font-family:Syne,sans-serif;font-size:13px;font-weight:800;'
+                'color:#2a1c10;margin-bottom:6px">Savings Rate Over Time</div>',
+                unsafe_allow_html=True)
+    st.plotly_chart(fig_sr, use_container_width=True, config={"displayModeBar":False})
+    st.markdown('</div>', unsafe_allow_html=True)
+
+
+# ══════════════════════════════════════════════════════════
+#  §5  INSIGHTS & ACTIONS  (tabbed — no repetition)
+# ══════════════════════════════════════════════════════════
+st.markdown('<p class="sec">💡 Insights & Actions</p>', unsafe_allow_html=True)
+
+tab1, tab2, tab3 = st.tabs(["📖  What happened", "🚀  What to do", "✦  AI Coach"])
+
+# ── Tab 1: Story ──────────────────────────────────────────
+with tab1:
+    story = [
+        f"You earned <b>{moneyf(total_income)}</b> and spent <b>{moneyf(total_expense)}</b>. "
+        + (f"You came out <b>{moneyf(net)} ahead</b>." if net>=0 else f"You overspent by <b>{moneyf(abs(net))}</b>."),
+    ]
+    if not exp_summary.empty:
+        t = exp_summary.iloc[0]
+        pct = t["Total"]/total_expense*100 if total_expense>0 else 0
+        story.append(f"<b>{t['Category']}</b> was your biggest cost at {moneyf(t['Total'])} "
+                     f"— {pct:.0f}% of all spending.")
+    story.append(f"<b>{fixed_pct:.0f}%</b> of your expenses are fixed bills you can't easily change. "
+                 f"The remaining <b>{flex_pct:.0f}%</b> ({moneyf(flex_total)}) is flexible and cuttable.")
+    if sub_total > 0:
+        story.append(f"Subscriptions are costing <b>{moneyf(sub_total)}</b> this period.")
+    if savings_rate >= 20:
+        story.append(f"Your savings rate of <b>{savings_rate:.1f}%</b> is excellent. You're building a cushion.")
+    elif savings_rate < 10 and total_income > 0:
+        story.append(f"A savings rate of <b>{savings_rate:.1f}%</b> is below the 10–20% range. "
+                     "Small regular transfers help build the habit.")
+
+    c_s1, c_s2 = st.columns(2)
+    for i, item in enumerate(story):
+        (c_s1 if i%2==0 else c_s2).markdown(
+            f'<div class="ins">{item}</div>', unsafe_allow_html=True)
+
+# ── Tab 2: Actions ────────────────────────────────────────
+with tab2:
+    actions = []
     if net < 0:
-        actions.append(("🔴", "Spending exceeds income",
-                        f"Cut discretionary spend — you're over budget by {money(abs(net))} this period."))
+        actions.append(("🔴","Spending exceeds income",
+            f"You're over by {moneyf(abs(net))}. Eating out and shopping tend to be the fastest wins."))
     elif savings_rate < 10:
-        actions.append(("🟡", "Boost your savings rate",
-                        f"At {savings_rate:.1f}% you're below the 10% floor. Try auto-transferring a fixed amount on payday."))
+        actions.append(("🟡","Boost your savings rate",
+            f"At {savings_rate:.1f}% you're below the 10% floor. Automate a transfer on payday — even $50 builds the habit."))
     else:
-        actions.append(("🟢", "Great cashflow — invest the surplus",
-                        f"You're saving {savings_rate:.1f}%. Consider a high-interest account or index fund for the extra."))
+        actions.append(("🟢","Keep going — and invest the surplus",
+            f"You're saving {savings_rate:.1f}%. A high-interest account or index fund puts that to work."))
+
+    if flex_pct > 40 and flex_total > 200:
+        actions.append(("✂️","Cut flexible spending",
+            f"{moneyf(flex_total)} of your spending is discretionary. Identify two categories to reduce this month."))
 
     if not exp_summary.empty:
         t = exp_summary.iloc[0]
-        actions.append(("📌", f"Review {t['Category']}",
-                        f"At {money(t['Total'])} this is your biggest category. Look for one or two easy cuts here."))
+        actions.append(("📌",f"Dig into {t['Category']}",
+            f"At {moneyf(t['Total'])} this is your biggest category. One targeted review here has the most leverage."))
 
-    if sub_total > 100:
-        actions.append(("📺", "Audit subscriptions",
-                        f"You're spending {money(sub_total)} on subscriptions. Cancel anything you haven't used in 30 days."))
+    if sub_total > 80:
+        actions.append(("📺","Review subscriptions",
+            f"You're paying {moneyf(sub_total)}. Cancel anything you haven't actively used this month."))
 
-    if savings_rate >= 20 and net > 0:
-        actions.append(("📈", "Start investing",
-                        "You have healthy cashflow. Even $50/week in an index fund compounds significantly over time."))
+    actions.append(("📅","Upload next month",
+        "Month-over-month tracking is the single most effective habit for improving financial health."))
 
-    actions.append(("📅", "Track next month",
-                    "Upload next month's statement to see your progress and catch bad habits early."))
+    c_a1, c_a2 = st.columns(2)
+    for i,(emoji,title,desc) in enumerate(actions[:4]):
+        col = c_a1 if i%2==0 else c_a2
+        with col:
+            st.markdown(f"""
+            <div class="act">
+              <div class="act-n">{i+1}</div>
+              <div>
+                <div class="act-t">{emoji} {title}</div>
+                <div class="act-d">{desc}</div>
+              </div>
+            </div>""", unsafe_allow_html=True)
 
-    for i, (emoji, title, desc) in enumerate(actions[:4], 1):
-        st.markdown(f"""
-        <div class="action-card">
-          <span class="action-num">{i}</span><b>{emoji} {title}</b><br>
-          <span style="font-size:13px;color:#4b5563;margin-left:30px;display:block;margin-top:4px">{desc}</span>
-        </div>""", unsafe_allow_html=True)
+# ── Tab 3: AI Coach ───────────────────────────────────────
+with tab3:
+    ai_text = None
+    if run_ai:
+        k = api_key.strip() or os.environ.get("ANTHROPIC_API_KEY","")
+        if k:
+            tc = exp_summary.iloc[0]["Category"] if not exp_summary.empty else "N/A"
+            ta = moneyf(exp_summary.iloc[0]["Total"]) if not exp_summary.empty else "N/A"
+            with st.spinner("Thinking…"):
+                ai_text = get_ai_insights(k, (
+                    f"Income: {moneyf(total_income)}\nExpenses: {moneyf(total_expense)}\n"
+                    f"Net Cashflow: {money(net,True)}\nSavings Rate: {savings_rate:.1f}%\n"
+                    f"Health Score: {health_score}/100 ({s_label})\n"
+                    f"Biggest expense: {tc} ({ta})\nFixed bills: {moneyf(fixed_total)}\n"
+                    f"Flexible spend: {moneyf(flex_total)}\nSubscriptions: {moneyf(sub_total)}\n"
+                    f"Avg daily spend: {moneyf(avg_daily)}"
+                ))
+            if not ai_text:
+                st.warning("Couldn't reach the AI. Check your API key and connection.")
+        else:
+            st.info("Add your Anthropic API key in the sidebar to unlock AI coaching.")
 
-
-# ══════════════════════════════════════════════════════════
-#  ROW 5 — DAILY SPENDING TREND
-# ══════════════════════════════════════════════════════════
-st.markdown("---")
-st.markdown('<p class="sh">📉 Daily Spending Trend</p>', unsafe_allow_html=True)
-
-daily = (
-    exp_df.groupby("Day")["Amount"].sum().abs()
-    .reset_index().rename(columns={"Amount": "Spent"})
-)
-daily["Day"] = pd.to_datetime(daily["Day"])
-
-if not daily.empty:
-    fig_area = px.area(daily, x="Day", y="Spent", color_discrete_sequence=["#2563eb"])
-    fig_area.update_traces(
-        fill="tozeroy", fillcolor="rgba(37,99,235,.08)",
-        line=dict(color="#2563eb", width=2),
-    )
-    fig_area.update_layout(
-        height=240, paper_bgcolor="white", plot_bgcolor="white",
-        margin=dict(t=10, b=30, l=0, r=0),
-        font={"family": "Inter"},
-        xaxis=dict(showgrid=False, title=""),
-        yaxis=dict(showgrid=True, gridcolor="#f3f4f6", title="Daily Spend ($)"),
-    )
-    st.plotly_chart(fig_area, use_container_width=True, config={"displayModeBar": False})
-else:
-    st.info("No daily expense data available for the selected filters.")
-
-
-# ══════════════════════════════════════════════════════════
-#  ROW 6 — RECURRING BILLS
-# ══════════════════════════════════════════════════════════
-st.markdown("---")
-st.markdown('<p class="sh">🔁 Bills & Recurring Costs</p>', unsafe_allow_html=True)
-
-RECURRING_CATS = ["Rent", "Subscriptions", "Subscription", "Utilities", "Insurance",
-                  "Childcare", "Phone", "Internet", "Fuel"]
-fixed_df = exp_df[exp_df["Category"].isin(RECURRING_CATS)]
-
-if not fixed_df.empty:
-    fixed_sum = (
-        fixed_df.groupby("Category")["Amount"].sum().abs()
-        .reset_index().sort_values("Amount", ascending=False)
-    )
-    fig_rec = px.bar(
-        fixed_sum, x="Category", y="Amount",
-        text_auto=".2s", color_discrete_sequence=["#7c3aed"],
-    )
-    fig_rec.update_traces(textfont_size=10, textposition="outside", marker_line_width=0, opacity=.85)
-    fig_rec.update_layout(
-        height=300, paper_bgcolor="white", plot_bgcolor="white",
-        margin=dict(t=16, b=30, l=0, r=0),
-        font={"family": "Inter"},
-        xaxis=dict(showgrid=False, title=""),
-        yaxis=dict(showgrid=True, gridcolor="#f3f4f6", title="Amount ($)"),
-    )
-    st.plotly_chart(fig_rec, use_container_width=True, config={"displayModeBar": False})
-else:
-    st.info("No recurring costs detected for this period.")
+    if ai_text:
+        st.markdown(
+            f'<div style="background:linear-gradient(140deg,#f5f2ff,#f0f8ff);'
+            f'border:1px solid #d8d0f4;border-radius:18px;padding:22px 24px">'
+            f'<div style="background:#ece6fd;color:#5738c8;font-size:10px;font-weight:800;'
+            f'text-transform:uppercase;letter-spacing:.1em;padding:3px 10px;border-radius:99px;'
+            f'margin-bottom:12px;display:inline-block;font-family:DM Sans,sans-serif">✦ Claude AI</div>'
+            f'<div style="font-size:14px;color:#1a1008;line-height:1.8;white-space:pre-line">{ai_text}</div>'
+            f'</div>',
+            unsafe_allow_html=True)
+    else:
+        st.markdown(
+            '<div style="padding:24px;text-align:center;color:#b8a898;font-size:14px">'
+            'Enter your Anthropic API key in the sidebar and click <b>Generate Insights</b> '
+            'for personalised AI coaching.</div>',
+            unsafe_allow_html=True)
 
 
 # ══════════════════════════════════════════════════════════
-#  ROW 7 — TRANSACTION TABLE
+#  §6  TRANSACTION TABLE
 # ══════════════════════════════════════════════════════════
-st.markdown("---")
-st.markdown('<p class="sh">🔎 Transaction Explorer</p>', unsafe_allow_html=True)
+st.markdown('<p class="sec">🔎 Transaction Explorer</p>', unsafe_allow_html=True)
 
-disp = fdf[["Date", "Description", "Amount", "Category", "Type", "Month"]].copy()
+disp = fdf[["Date","Description","Amount","Category","Type","Month"]].copy()
 disp["Date"] = disp["Date"].dt.strftime("%d %b %Y")
 disp = disp.sort_values("Date", ascending=False)
+st.dataframe(disp, use_container_width=True, height=400,
+             column_config={
+                 "Amount":   st.column_config.NumberColumn("Amount ($)", format="$%.2f"),
+                 "Category": st.column_config.TextColumn("Category"),
+             })
 
-st.dataframe(
-    disp,
-    use_container_width=True,
-    height=420,
-    column_config={
-        "Amount":   st.column_config.NumberColumn("Amount ($)", format="$%.2f"),
-        "Category": st.column_config.TextColumn("Category"),
-        "Type":     st.column_config.TextColumn("Type"),
-    },
-)
-
-# ══════════════════════════════════════════════════════════
-#  FOOTER
-# ══════════════════════════════════════════════════════════
 st.markdown("""
 <div class="disclaimer">
-  ⚠️ <b>Disclaimer:</b> Money Health Agent is for personal education and spending awareness only.
+  Money Health Agent is for personal education and spending awareness only.
   It does not constitute financial, tax, investment, or credit advice.
   Consult a licensed financial adviser for professional guidance.
 </div>
