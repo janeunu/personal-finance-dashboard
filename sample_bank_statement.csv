@@ -1,7 +1,127 @@
 ﻿Date,Description,Amount
-2026-01-02,Salary Payment,3200
+2026-01-01,Opening Balance Transfer,500
+2026-01-02,Salary Payment - Main Job,3200
 2026-01-03,Rent Payment,-1800
-2026-01-04,Coles Supermarket,-145.50
-2026-01-05,Woolworths,-92.30
-2026-01-06,Uber Trip,-26.40
-2026-01-07,Netflix Subscription,-22.99
+2026-01-03,Coles Supermarket,-142.80
+2026-01-04,Woolworths Metro,-76.45
+2026-01-05,Netflix Subscription,-22.99
+2026-01-05,Spotify Premium,-13.99
+2026-01-06,Myki Top Up,-50
+2026-01-06,Uber Trip,-28.60
+2026-01-07,BP Fuel,-82.30
+2026-01-08,Childcare Centre,-420
+2026-01-09,Kmart Kids Clothes,-95.40
+2026-01-10,Coffee Shop South Yarra,-18.50
+2026-01-11,Restaurant Dinner,-92.70
+2026-01-12,Amazon Purchase,-130.20
+2026-01-14,Refund Kmart,45.00
+2026-01-15,Salary Payment - Main Job,3200
+2026-01-16,Electricity Bill,-185.60
+2026-01-17,Phone Bill,-59.00
+2026-01-18,Health Pharmacy,-42.90
+2026-01-19,Coles Supermarket,-156.30
+2026-01-20,Insurance Payment,-210.00
+2026-01-21,Transfer to Savings,-700.00
+2026-01-22,Family Transfer Received,300.00
+2026-01-23,Uber Eats,-48.50
+2026-01-24,Shell Fuel,-79.40
+2026-01-25,Childcare Centre,-420
+2026-01-26,Big W Toys,-65.00
+2026-01-27,Water Bill,-88.20
+2026-01-29,Salary Payment - Main Job,3200
+2026-01-30,Restaurant Lunch,-58.30
+2026-01-31,Account Fee,-5.00
+2026-02-01,Opening Balance Transfer,400
+2026-02-02,Salary Payment - Main Job,3200
+2026-02-03,Rent Payment,-1800
+2026-02-03,Coles Supermarket,-151.20
+2026-02-04,Woolworths Metro,-98.10
+2026-02-05,Netflix Subscription,-22.99
+2026-02-05,Spotify Premium,-13.99
+2026-02-06,Myki Top Up,-60
+2026-02-06,Uber Trip,-35.20
+2026-02-07,BP Fuel,-88.50
+2026-02-08,Childcare Centre,-420
+2026-02-09,Kmart Home Items,-73.90
+2026-02-10,Coffee Shop South Yarra,-21.70
+2026-02-11,Restaurant Dinner,-118.40
+2026-02-12,Amazon Purchase,-89.99
+2026-02-13,Medical Centre,-85.00
+2026-02-15,Salary Payment - Main Job,3200
+2026-02-16,Gas Bill,-96.30
+2026-02-17,Phone Bill,-59.00
+2026-02-18,Chemist Warehouse,-39.80
+2026-02-19,Aldi Supermarket,-122.40
+2026-02-20,Insurance Payment,-210.00
+2026-02-21,Transfer to Savings,-600.00
+2026-02-22,Family Transfer Received,250.00
+2026-02-23,Uber Eats,-55.60
+2026-02-24,Shell Fuel,-83.10
+2026-02-25,Childcare Centre,-420
+2026-02-26,Target Kids Shoes,-89.00
+2026-02-27,Internet Bill,-75.00
+2026-02-28,Car Service,-480.00
+2026-03-01,Opening Balance Transfer,350
+2026-03-02,Salary Payment - Main Job,3200
+2026-03-03,Rent Payment,-1800
+2026-03-03,Coles Supermarket,-132.80
+2026-03-04,Woolworths Metro,-104.90
+2026-03-05,Netflix Subscription,-22.99
+2026-03-05,Spotify Premium,-13.99
+2026-03-06,Myki Top Up,-55
+2026-03-06,Uber Trip,-31.40
+2026-03-07,BP Fuel,-91.20
+2026-03-08,Childcare Centre,-420
+2026-03-09,Kmart Purchase,-115.60
+2026-03-10,Coffee Shop South Yarra,-19.80
+2026-03-11,Restaurant Dinner,-96.50
+2026-03-12,Amazon Purchase,-140.00
+2026-03-14,ATO Refund,620.00
+2026-03-15,Salary Payment - Main Job,3200
+2026-03-16,Electricity Bill,-175.00
+2026-03-17,Phone Bill,-59.00
+2026-03-18,Health Pharmacy,-46.20
+2026-03-19,Coles Supermarket,-168.90
+2026-03-20,Insurance Payment,-210.00
+2026-03-21,Transfer to Savings,-800.00
+2026-03-22,Family Transfer Received,200.00
+2026-03-23,Uber Eats,-61.20
+2026-03-24,Shell Fuel,-86.40
+2026-03-25,Childcare Centre,-420
+2026-03-26,IKEA Furniture,-350.00
+2026-03-27,Water Bill,-92.00
+2026-03-29,Salary Payment - Main Job,3200
+2026-03-30,Restaurant Lunch,-66.70
+2026-03-31,Account Fee,-5.00
+2026-04-01,Opening Balance Transfer,600
+2026-04-02,Salary Payment - Main Job,3200
+2026-04-03,Rent Payment,-1800
+2026-04-03,Coles Supermarket,-160.30
+2026-04-04,Woolworths Metro,-110.40
+2026-04-05,Netflix Subscription,-22.99
+2026-04-05,Spotify Premium,-13.99
+2026-04-06,Myki Top Up,-55
+2026-04-06,Uber Trip,-33.00
+2026-04-07,BP Fuel,-89.90
+2026-04-08,Childcare Centre,-420
+2026-04-09,Kmart Kids Clothes,-102.60
+2026-04-10,Coffee Shop South Yarra,-24.20
+2026-04-11,Restaurant Dinner,-130.80
+2026-04-12,Amazon Purchase,-210.50
+2026-04-13,Refund Amazon,60.00
+2026-04-15,Salary Payment - Main Job,3200
+2026-04-16,Gas Bill,-102.40
+2026-04-17,Phone Bill,-59.00
+2026-04-18,Chemist Warehouse,-52.10
+2026-04-19,Aldi Supermarket,-138.20
+2026-04-20,Insurance Payment,-210.00
+2026-04-21,Transfer to Savings,-500.00
+2026-04-22,Family Transfer Received,300.00
+2026-04-23,Uber Eats,-72.40
+2026-04-24,Shell Fuel,-94.50
+2026-04-25,Childcare Centre,-420
+2026-04-26,Flight Centre Deposit,-650.00
+2026-04-27,Internet Bill,-75.00
+2026-04-28,Dental Clinic,-220.00
+2026-04-29,Salary Payment - Main Job,3200
+2026-04-30,Restaurant Lunch,-74.90

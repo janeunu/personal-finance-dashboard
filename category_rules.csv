@@ -2,11 +2,18 @@ keyword,category,type
 salary,Salary,Income
 payroll,Salary,Income
 wages,Salary,Income
+family transfer received,Family Support,Income
+ato refund,Tax Refund,Income
+refund,Refund,Income
+opening balance,Transfer,Income
 coles,Groceries,Expense
 woolworths,Groceries,Expense
 aldi,Groceries,Expense
-uber,Transport,Expense
+uber trip,Transport,Expense
 myki,Transport,Expense
+uber eats,Eating Out,Expense
+restaurant,Eating Out,Expense
+coffee,Coffee,Expense
 bp,Fuel,Expense
 shell,Fuel,Expense
 netflix,Subscriptions,Expense
@@ -14,9 +21,21 @@ spotify,Subscriptions,Expense
 rent,Rent,Expense
 childcare,Childcare,Expense
 kmart,Shopping,Expense
+target,Shopping,Expense
+big w,Shopping,Expense
 amazon,Shopping,Expense
-restaurant,Eating Out,Expense
-coffee,Coffee,Expense
+ikea,Home,Expense
 electricity,Utilities,Expense
-gas,Utilities,Expense
+gas bill,Utilities,Expense
+water bill,Utilities,Expense
+internet,Utilities,Expense
+phone,Utilities,Expense
 insurance,Insurance,Expense
+pharmacy,Health,Expense
+chemist,Health,Expense
+medical,Health,Expense
+dental,Health,Expense
+car service,Car Expenses,Expense
+flight centre,Travel,Expense
+transfer to savings,Savings Transfer,Expense
+account fee,Bank Fees,Expense

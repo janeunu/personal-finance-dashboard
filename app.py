@@ -2,273 +2,411 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 
-st.set_page_config(page_title="Money Health Agent", layout="wide")
+# ---------------- PAGE CONFIG ----------------
+st.set_page_config(
+    page_title="Money Health Dashboard",
+    layout="wide"
+)
 
-# ---------- STYLE ----------
+# ---------------- CUSTOM STYLE ----------------
 st.markdown("""
 <style>
-.main {
-    background-color: #f7f9fc;
+.block-container {
+    padding-top: 1.5rem;
+    padding-bottom: 2rem;
 }
-.big-card {
-    padding: 22px;
+
+.kpi-card {
+    background: white;
+    padding: 20px;
     border-radius: 18px;
-    background-color: white;
     box-shadow: 0 4px 14px rgba(0,0,0,0.08);
-    margin-bottom: 15px;
+    border: 1px solid #eef2f7;
 }
-.metric-title {
-    font-size: 15px;
+
+.kpi-label {
+    font-size: 14px;
     color: #6b7280;
+    margin-bottom: 8px;
 }
-.metric-value {
-    font-size: 30px;
-    font-weight: 700;
+
+.kpi-value {
+    font-size: 28px;
+    font-weight: 800;
     color: #111827;
 }
-.good {
-    color: #15803d;
-    font-weight: 700;
+
+.status-card {
+    background: #f8fafc;
+    padding: 22px;
+    border-radius: 18px;
+    border: 1px solid #e5e7eb;
+    margin-top: 10px;
+    margin-bottom: 20px;
 }
-.warning {
-    color: #ca8a04;
-    font-weight: 700;
-}
-.danger {
-    color: #dc2626;
-    font-weight: 700;
+
+.insight-card {
+    background: white;
+    padding: 18px;
+    border-radius: 16px;
+    border: 1px solid #e5e7eb;
+    margin-bottom: 10px;
 }
 </style>
 """, unsafe_allow_html=True)
 
-st.title("💰 Money Health Agent")
-st.write("A simple personal finance dashboard for people who want to understand their money without finance knowledge.")
+# ---------------- TITLE ----------------
+st.title("💰 Money Health Dashboard")
+st.write(
+    "A one-page personal finance dashboard that helps everyday people understand "
+    "their income, expenses, savings, and financial position clearly."
+)
 
+# ---------------- LOAD RULES ----------------
+rules = pd.read_csv("category_rules.csv")
+rules["keyword"] = rules["keyword"].astype(str).str.lower()
+
+# ---------------- FUNCTIONS ----------------
+def categorise_transaction(description, amount):
+    description = str(description).lower()
+
+    for _, rule in rules.iterrows():
+        if rule["keyword"] in description:
+            return rule["category"], rule["type"]
+
+    if amount > 0:
+        return "Other Income", "Income"
+    return "Other Expense", "Expense"
+
+
+def money_health_status(savings_rate, net_cashflow):
+    if net_cashflow < 0:
+        return "🔴 Overspending", "You spent more than you earned. This needs attention."
+    elif savings_rate >= 20:
+        return "🟢 Healthy", "You are saving a strong portion of your income."
+    elif savings_rate >= 10:
+        return "🟡 Stable", "You are saving money, but there is room to improve."
+    else:
+        return "🟠 Tight", "You are saving only a small amount. Watch your flexible spending."
+
+
+def format_money(value):
+    return f"${value:,.2f}"
+
+
+# ---------------- UPLOAD ----------------
 uploaded_file = st.file_uploader("Upload your bank statement CSV", type=["csv"])
 
-rules = pd.read_csv("category_rules.csv")
+if uploaded_file is None:
+    st.info("Upload `sample_bank_statement.csv` to view the dashboard.")
+    st.stop()
 
+# ---------------- DATA CLEANING ----------------
+df = pd.read_csv(uploaded_file)
+df.columns = df.columns.str.strip()
 
-def categorise(desc, amount):
-    desc = str(desc).lower()
-    for _, row in rules.iterrows():
-        if str(row["keyword"]).lower() in desc:
-            return row["category"], row["type"]
-    return ("Other Income", "Income") if amount > 0 else ("Other Expense", "Expense")
+required_columns = ["Date", "Description", "Amount"]
 
+if not all(col in df.columns for col in required_columns):
+    st.error("Your CSV must include these exact columns: Date, Description, Amount")
+    st.write("Detected columns:", df.columns.tolist())
+    st.stop()
 
-def money_status(savings_rate, net):
-    if net < 0:
-        return "🔴 Overspending", "danger", "You spent more than you earned. Focus on reducing flexible spending."
-    elif savings_rate >= 20:
-        return "🟢 Healthy", "good", "You are saving a strong portion of your income."
-    elif savings_rate >= 10:
-        return "🟡 Stable", "warning", "You are saving, but there is room to improve."
-    else:
-        return "🟠 Tight", "warning", "You are saving a small amount. Watch your expenses carefully."
+df["Date"] = pd.to_datetime(df["Date"], errors="coerce")
+df["Amount"] = pd.to_numeric(df["Amount"], errors="coerce")
+df = df.dropna(subset=["Date", "Amount"])
 
+df[["Category", "Type"]] = df.apply(
+    lambda row: pd.Series(
+        categorise_transaction(row["Description"], row["Amount"])
+    ),
+    axis=1
+)
 
-if uploaded_file:
-    df = pd.read_csv(uploaded_file)
-    df.columns = df.columns.str.strip()
+df["Month"] = df["Date"].dt.to_period("M").astype(str)
 
-    required = ["Date", "Description", "Amount"]
+# ---------------- SIDEBAR FILTERS ----------------
+st.sidebar.header("Dashboard Filters")
 
-    if not all(col in df.columns for col in required):
-        st.error("Your CSV must contain Date, Description, and Amount columns.")
-        st.write("Detected columns:", df.columns.tolist())
-    else:
-        df["Date"] = pd.to_datetime(df["Date"], errors="coerce")
-        df["Amount"] = pd.to_numeric(df["Amount"], errors="coerce")
-        df = df.dropna(subset=["Date", "Amount"])
+month_options = ["All"] + sorted(df["Month"].unique())
+selected_month = st.sidebar.selectbox("Month", month_options)
 
-        df[["Category", "Type"]] = df.apply(
-            lambda row: pd.Series(categorise(row["Description"], row["Amount"])),
-            axis=1
+category_options = ["All"] + sorted(df["Category"].unique())
+selected_category = st.sidebar.selectbox("Category", category_options)
+
+filtered_df = df.copy()
+
+if selected_month != "All":
+    filtered_df = filtered_df[filtered_df["Month"] == selected_month]
+
+if selected_category != "All":
+    filtered_df = filtered_df[filtered_df["Category"] == selected_category]
+
+income_df = filtered_df[filtered_df["Type"] == "Income"]
+expense_df = filtered_df[filtered_df["Type"] == "Expense"]
+
+total_income = income_df["Amount"].sum()
+total_expenses = abs(expense_df["Amount"].sum())
+net_cashflow = total_income - total_expenses
+savings_rate = (net_cashflow / total_income * 100) if total_income > 0 else 0
+
+status, status_message = money_health_status(savings_rate, net_cashflow)
+
+# ---------------- KPI CARDS ----------------
+k1, k2, k3, k4, k5 = st.columns(5)
+
+with k1:
+    st.markdown(f"""
+    <div class="kpi-card">
+        <div class="kpi-label">Total Income</div>
+        <div class="kpi-value">{format_money(total_income)}</div>
+    </div>
+    """, unsafe_allow_html=True)
+
+with k2:
+    st.markdown(f"""
+    <div class="kpi-card">
+        <div class="kpi-label">Total Expenses</div>
+        <div class="kpi-value">{format_money(total_expenses)}</div>
+    </div>
+    """, unsafe_allow_html=True)
+
+with k3:
+    st.markdown(f"""
+    <div class="kpi-card">
+        <div class="kpi-label">Money Left</div>
+        <div class="kpi-value">{format_money(net_cashflow)}</div>
+    </div>
+    """, unsafe_allow_html=True)
+
+with k4:
+    st.markdown(f"""
+    <div class="kpi-card">
+        <div class="kpi-label">Savings Rate</div>
+        <div class="kpi-value">{savings_rate:.1f}%</div>
+    </div>
+    """, unsafe_allow_html=True)
+
+with k5:
+    st.markdown(f"""
+    <div class="kpi-card">
+        <div class="kpi-label">Money Status</div>
+        <div class="kpi-value">{status}</div>
+    </div>
+    """, unsafe_allow_html=True)
+
+# ---------------- STATUS EXPLANATION ----------------
+st.markdown(f"""
+<div class="status-card">
+    <h3>{status}</h3>
+    <p>{status_message}</p>
+    <p>
+        You earned <b>{format_money(total_income)}</b>, spent 
+        <b>{format_money(total_expenses)}</b>, and had 
+        <b>{format_money(net_cashflow)}</b> left.
+    </p>
+</div>
+""", unsafe_allow_html=True)
+
+# ---------------- DASHBOARD CHARTS ----------------
+left, right = st.columns([1.25, 1])
+
+with left:
+    st.subheader("📅 Income vs Expenses Over Time")
+
+    monthly_summary = (
+        df.groupby(["Month", "Type"])["Amount"]
+        .sum()
+        .reset_index()
+    )
+
+    monthly_summary["Amount"] = monthly_summary.apply(
+        lambda row: abs(row["Amount"]) if row["Type"] == "Expense" else row["Amount"],
+        axis=1
+    )
+
+    fig_monthly = px.bar(
+        monthly_summary,
+        x="Month",
+        y="Amount",
+        color="Type",
+        barmode="group",
+        text_auto=".2s"
+    )
+
+    fig_monthly.update_layout(
+        height=420,
+        xaxis_title="Month",
+        yaxis_title="Amount",
+        legend_title=""
+    )
+
+    st.plotly_chart(fig_monthly, use_container_width=True)
+
+with right:
+    st.subheader("🍩 Expense Breakdown")
+
+    expense_summary = (
+        expense_df.groupby("Category")["Amount"]
+        .sum()
+        .abs()
+        .reset_index()
+        .sort_values("Amount", ascending=False)
+    )
+
+    if not expense_summary.empty:
+        fig_donut = px.pie(
+            expense_summary,
+            names="Category",
+            values="Amount",
+            hole=0.45
         )
 
-        df["Month"] = df["Date"].dt.to_period("M").astype(str)
+        fig_donut.update_layout(height=420)
 
-        # Sidebar filters
-        st.sidebar.header("Filters")
-        months = sorted(df["Month"].unique())
-        selected_month = st.sidebar.selectbox("Select month", ["All"] + months)
+        st.plotly_chart(fig_donut, use_container_width=True)
+    else:
+        st.info("No expenses found for this selection.")
 
-        if selected_month != "All":
-            filtered = df[df["Month"] == selected_month]
-        else:
-            filtered = df.copy()
+# ---------------- SECOND ROW ----------------
+left2, right2 = st.columns([1, 1])
 
-        income_df = filtered[filtered["Type"] == "Income"]
-        expense_df = filtered[filtered["Type"] == "Expense"]
+with left2:
+    st.subheader("🏆 Top Spending Categories")
 
-        total_income = income_df["Amount"].sum()
-        total_expense = abs(expense_df["Amount"].sum())
-        net = total_income - total_expense
-        savings_rate = (net / total_income * 100) if total_income > 0 else 0
-
-        status, status_class, status_message = money_status(savings_rate, net)
-
-        # ---------- TOP SUMMARY ----------
-        st.subheader("Your Money Health Snapshot")
-
-        c1, c2, c3, c4 = st.columns(4)
-
-        with c1:
-            st.markdown(f"""
-            <div class="big-card">
-                <div class="metric-title">Income</div>
-                <div class="metric-value">${total_income:,.2f}</div>
-            </div>
-            """, unsafe_allow_html=True)
-
-        with c2:
-            st.markdown(f"""
-            <div class="big-card">
-                <div class="metric-title">Expenses</div>
-                <div class="metric-value">${total_expense:,.2f}</div>
-            </div>
-            """, unsafe_allow_html=True)
-
-        with c3:
-            st.markdown(f"""
-            <div class="big-card">
-                <div class="metric-title">Money Left</div>
-                <div class="metric-value">${net:,.2f}</div>
-            </div>
-            """, unsafe_allow_html=True)
-
-        with c4:
-            st.markdown(f"""
-            <div class="big-card">
-                <div class="metric-title">Savings Rate</div>
-                <div class="metric-value">{savings_rate:.1f}%</div>
-            </div>
-            """, unsafe_allow_html=True)
-
-        st.markdown(f"""
-        <div class="big-card">
-            <h3>{status}</h3>
-            <p class="{status_class}">{status_message}</p>
-            <p>You earned <b>${total_income:,.2f}</b>, spent <b>${total_expense:,.2f}</b>, and had <b>${net:,.2f}</b> left.</p>
-        </div>
-        """, unsafe_allow_html=True)
-
-        # ---------- CHARTS ----------
-        left, right = st.columns([1.1, 1])
-
-        with left:
-            st.subheader("Where Your Money Goes")
-
-            expense_summary = (
-                expense_df.groupby("Category")["Amount"]
-                .sum()
-                .abs()
-                .reset_index()
-                .sort_values("Amount", ascending=False)
-            )
-
-            if not expense_summary.empty:
-                fig = px.bar(
-                    expense_summary,
-                    x="Amount",
-                    y="Category",
-                    orientation="h",
-                    title="Spending by Category",
-                    text_auto=".2s"
-                )
-                fig.update_layout(yaxis={"categoryorder": "total ascending"})
-                st.plotly_chart(fig, use_container_width=True)
-            else:
-                st.info("No expenses found.")
-
-        with right:
-            st.subheader("Spending Share")
-
-            if not expense_summary.empty:
-                fig2 = px.pie(
-                    expense_summary,
-                    names="Category",
-                    values="Amount",
-                    hole=0.45,
-                    title="Expense Breakdown"
-                )
-                st.plotly_chart(fig2, use_container_width=True)
-
-        # ---------- MONTHLY TREND ----------
-        st.subheader("Monthly Money Movement")
-
-        monthly = df.groupby(["Month", "Type"])["Amount"].sum().reset_index()
-        monthly["Amount"] = monthly.apply(
-            lambda r: abs(r["Amount"]) if r["Type"] == "Expense" else r["Amount"],
-            axis=1
+    if not expense_summary.empty:
+        fig_top = px.bar(
+            expense_summary.head(8),
+            x="Amount",
+            y="Category",
+            orientation="h",
+            text_auto=".2s"
         )
 
-        fig3 = px.bar(
-            monthly,
-            x="Month",
+        fig_top.update_layout(
+            height=420,
+            yaxis={"categoryorder": "total ascending"},
+            xaxis_title="Amount",
+            yaxis_title=""
+        )
+
+        st.plotly_chart(fig_top, use_container_width=True)
+    else:
+        st.info("No spending categories to show.")
+
+with right2:
+    st.subheader("🔁 Bills, Subscriptions & Fixed Costs")
+
+    fixed_categories = [
+        "Rent",
+        "Subscriptions",
+        "Subscription",
+        "Utilities",
+        "Insurance",
+        "Childcare",
+        "Phone",
+        "Internet"
+    ]
+
+    fixed_df = expense_df[expense_df["Category"].isin(fixed_categories)]
+
+    if not fixed_df.empty:
+        fixed_summary = (
+            fixed_df.groupby("Category")["Amount"]
+            .sum()
+            .abs()
+            .reset_index()
+            .sort_values("Amount", ascending=False)
+        )
+
+        fig_fixed = px.bar(
+            fixed_summary,
+            x="Category",
             y="Amount",
-            color="Type",
-            barmode="group",
-            title="Income vs Expenses Over Time"
-        )
-        st.plotly_chart(fig3, use_container_width=True)
-
-        # ---------- TOP SPENDING ----------
-        st.subheader("Top Spending Areas")
-
-        if not expense_summary.empty:
-            top_expenses = expense_summary.head(5)
-
-            for _, row in top_expenses.iterrows():
-                percent = row["Amount"] / total_expense * 100 if total_expense > 0 else 0
-                st.progress(percent / 100)
-                st.write(f"**{row['Category']}** — ${row['Amount']:,.2f} ({percent:.1f}% of spending)")
-
-        # ---------- FRIENDLY INSIGHTS ----------
-        st.subheader("Plain-English Money Insights")
-
-        insights = []
-
-        if not expense_summary.empty:
-            biggest = expense_summary.iloc[0]
-            insights.append(
-                f"Your biggest spending area is **{biggest['Category']}**, costing **${biggest['Amount']:,.2f}**."
-            )
-
-        if savings_rate >= 20:
-            insights.append("You are saving a strong portion of your income. This is a healthy position.")
-        elif savings_rate >= 10:
-            insights.append("You are saving some money, but improving by even 5% could make a big difference.")
-        elif net >= 0:
-            insights.append("You are not overspending, but your leftover money is quite low.")
-        else:
-            insights.append("You are currently spending more than you earn. This needs attention.")
-
-        subscription_keywords = ["Subscriptions", "Subscription"]
-        subscription_total = expense_df[expense_df["Category"].isin(subscription_keywords)]["Amount"].abs().sum()
-
-        if subscription_total > 0:
-            insights.append(f"Your subscriptions cost **${subscription_total:,.2f}** in this period.")
-
-        for insight in insights:
-            st.markdown(f"- {insight}")
-
-        # ---------- TRANSACTION EXPLORER ----------
-        st.subheader("Transaction Explorer")
-
-        categories = ["All"] + sorted(filtered["Category"].unique())
-        selected_category = st.selectbox("Choose category", categories)
-
-        if selected_category != "All":
-            display_df = filtered[filtered["Category"] == selected_category]
-        else:
-            display_df = filtered
-
-        st.dataframe(
-            display_df.sort_values("Date", ascending=False),
-            use_container_width=True
+            text_auto=".2s"
         )
 
+        fig_fixed.update_layout(
+            height=420,
+            xaxis_title="Fixed Cost Type",
+            yaxis_title="Amount"
+        )
+
+        st.plotly_chart(fig_fixed, use_container_width=True)
+    else:
+        st.info("No fixed bills detected yet.")
+
+# ---------------- INSIGHTS ----------------
+st.subheader("🧠 Plain-English Money Insights")
+
+insights = []
+
+if total_income > 0:
+    insights.append(
+        f"Your total income for this view is **{format_money(total_income)}**."
+    )
+
+if total_expenses > 0:
+    insights.append(
+        f"You spent **{format_money(total_expenses)}**, which is **{(total_expenses / total_income * 100):.1f}%** of your income."
+        if total_income > 0 else
+        f"You spent **{format_money(total_expenses)}**."
+    )
+
+if not expense_summary.empty:
+    biggest_category = expense_summary.iloc[0]
+    biggest_percent = biggest_category["Amount"] / total_expenses * 100 if total_expenses > 0 else 0
+    insights.append(
+        f"Your biggest spending area is **{biggest_category['Category']}**, "
+        f"costing **{format_money(biggest_category['Amount'])}** "
+        f"({biggest_percent:.1f}% of expenses)."
+    )
+
+subscription_total = expense_df[
+    expense_df["Category"].isin(["Subscription", "Subscriptions"])
+]["Amount"].abs().sum()
+
+if subscription_total > 0:
+    insights.append(
+        f"Your subscriptions cost **{format_money(subscription_total)}** in this period."
+    )
+
+if net_cashflow > 0:
+    insights.append(
+        f"You had **{format_money(net_cashflow)}** left after expenses."
+    )
 else:
-    st.info("Upload your sample bank statement CSV to start.")
+    insights.append(
+        f"You overspent by **{format_money(abs(net_cashflow))}** in this period."
+    )
+
+if savings_rate >= 20:
+    insights.append("Your savings rate is strong. This is a healthy money position.")
+elif savings_rate >= 10:
+    insights.append("Your savings rate is stable, but improving it slightly would make your finances stronger.")
+elif net_cashflow >= 0:
+    insights.append("You are not overspending, but your leftover money is low.")
+else:
+    insights.append("Your spending is higher than your income. Start by reviewing the top spending categories.")
+
+for insight in insights:
+    st.markdown(f"""
+    <div class="insight-card">
+        {insight}
+    </div>
+    """, unsafe_allow_html=True)
+
+# ---------------- TRANSACTION TABLE ----------------
+st.subheader("📋 Transaction Explorer")
+
+st.dataframe(
+    filtered_df.sort_values("Date", ascending=False),
+    use_container_width=True,
+    height=420
+)
+
+# ---------------- FOOTER ----------------
+st.caption(
+    "Disclaimer: This dashboard is for educational and personal tracking purposes only. "
+    "It is not financial advice."
+)
