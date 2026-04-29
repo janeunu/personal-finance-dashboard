@@ -1,0 +1,22 @@
+keyword,category,type
+salary,Salary,Income
+payroll,Salary,Income
+wages,Salary,Income
+coles,Groceries,Expense
+woolworths,Groceries,Expense
+aldi,Groceries,Expense
+uber,Transport,Expense
+myki,Transport,Expense
+bp,Fuel,Expense
+shell,Fuel,Expense
+netflix,Subscriptions,Expense
+spotify,Subscriptions,Expense
+rent,Rent,Expense
+childcare,Childcare,Expense
+kmart,Shopping,Expense
+amazon,Shopping,Expense
+restaurant,Eating Out,Expense
+coffee,Coffee,Expense
+electricity,Utilities,Expense
+gas,Utilities,Expense
+insurance,Insurance,Expense
