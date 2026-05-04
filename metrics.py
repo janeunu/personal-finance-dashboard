@@ -39,31 +39,49 @@ class PeriodMetrics:
     avg_daily_spend: float
     spending_days:   int
     txn_count:       int
-    health_score:    int     # 0–100
-    score_label:     str
-    score_color:     str
-    score_bg:        str
-
-
-def _score_color(score: int) -> str:
-    if score >= SCORE_EXCELLENT: return "#2db88a"
-    if score >= SCORE_HEALTHY:   return "#5b7cf0"
-    if score >= SCORE_ATTENTION: return "#e09a2e"
-    return "#e05c4e"
-
-
-def _score_bg(score: int) -> str:
-    if score >= SCORE_EXCELLENT: return "#082b1a"
-    if score >= SCORE_HEALTHY:   return "#0a1830"
-    if score >= SCORE_ATTENTION: return "#28180a"
-    return "#280a08"
+    health_score:    int     # 0-100
+    score_label:     str     # "Excellent" | "Healthy" | "Needs Attention" | "At Risk"
+    verdict_headline: str    # plain-English sentence for the hero banner
+    # Note: score colours are owned by ui.py — not duplicated here
 
 
 def _score_label(score: int) -> str:
     if score >= SCORE_EXCELLENT: return "Excellent"
     if score >= SCORE_HEALTHY:   return "Healthy"
-    if score >= SCORE_ATTENTION: return "Needs Attention"
-    return "At Risk"
+    if score >= SCORE_ATTENTION: return "Needs attention"
+    return "At risk"
+
+
+def _verdict_headline(
+    score:       int,
+    net:         float,
+    savings_rate: float,
+    top_category: str | None,
+) -> str:
+    """
+    One warm, plain-English sentence that answers "Am I okay?"
+    Written for someone with no finance background.
+    Varies based on the actual financial situation — not generic.
+    """
+    tc = top_category or "your spending"
+
+    if score >= SCORE_EXCELLENT:
+        if savings_rate >= 30:
+            return f"Excellent — you're saving {savings_rate:.0f}% of your income this month"
+        return "You're in great shape — income is well ahead of spending"
+
+    if score >= SCORE_HEALTHY:
+        return "You're doing well — keep watching your spending to go further"
+
+    if score >= SCORE_ATTENTION:
+        if net < 0:
+            return "Spending is slightly ahead of income — a few small cuts will fix that"
+        return f"Some areas need attention — {tc.lower()} is the best place to start"
+
+    # At risk
+    if net < 0:
+        return "Spending is higher than income right now — let's find where to cut"
+    return "Your finances need attention — the actions below will help most"
 
 
 def _health_score(
@@ -111,8 +129,15 @@ def _health_score(
     return min(score, 100)
 
 
-def compute_period_metrics(df: pd.DataFrame) -> PeriodMetrics:
-    """Compute all scalar metrics for a (filtered) DataFrame."""
+def compute_period_metrics(
+    df:           pd.DataFrame,
+    top_category: str | None = None,
+) -> PeriodMetrics:
+    """
+    Compute all scalar metrics for a (filtered) DataFrame.
+    Pass top_category (highest-spend category) so the verdict headline
+    can reference it specifically in plain English.
+    """
     inc_df = df[df["Type"] == "Income"]
     exp_df = df[df["Type"] == "Expense"]
 
@@ -127,29 +152,28 @@ def compute_period_metrics(df: pd.DataFrame) -> PeriodMetrics:
     sub_total = float(
         exp_df[exp_df["Category"].isin(SUBSCRIPTION_CATEGORIES)]["Amount"].abs().sum()
     )
-    flex_total   = max(total_expense - fixed_total, 0.0)
-    flex_pct     = (flex_total / total_expense * 100) if total_expense > 0 else 0.0
+    flex_total    = max(total_expense - fixed_total, 0.0)
+    flex_pct      = (flex_total / total_expense * 100) if total_expense > 0 else 0.0
     spending_days = int(exp_df["Day"].nunique())
     avg_daily     = total_expense / max(spending_days, 1)
 
     score = _health_score(total_income, total_expense, net, savings_rate, sub_total)
 
     return PeriodMetrics(
-        total_income    = total_income,
-        total_expense   = total_expense,
-        net             = net,
-        savings_rate    = savings_rate,
-        fixed_total     = fixed_total,
-        flex_total      = flex_total,
-        flex_pct        = flex_pct,
-        sub_total       = sub_total,
-        avg_daily_spend = avg_daily,
-        spending_days   = spending_days,
-        txn_count       = len(df),
-        health_score    = score,
-        score_label     = _score_label(score),
-        score_color     = _score_color(score),
-        score_bg        = _score_bg(score),
+        total_income     = total_income,
+        total_expense    = total_expense,
+        net              = net,
+        savings_rate     = savings_rate,
+        fixed_total      = fixed_total,
+        flex_total       = flex_total,
+        flex_pct         = flex_pct,
+        sub_total        = sub_total,
+        avg_daily_spend  = avg_daily,
+        spending_days    = spending_days,
+        txn_count        = len(df),
+        health_score     = score,
+        score_label      = _score_label(score),
+        verdict_headline = _verdict_headline(score, net, savings_rate, top_category),
     )
 
 

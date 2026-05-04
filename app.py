@@ -146,127 +146,145 @@ exp_df = fdf[fdf["Type"] == "Expense"]
 # ══════════════════════════════════════════════════════════════════════════════
 #  COMPUTE
 # ══════════════════════════════════════════════════════════════════════════════
-period       = m.compute_period_metrics(fdf)
-exp_by_cat   = m.expense_by_category(fdf)
-sr_trend     = m.savings_rate_by_month(df)       # always full dataset
+exp_by_cat   = m.expense_by_category(fdf)           # computed first — needed for headline
+top_cat      = exp_by_cat.iloc[0]["Category"] if not exp_by_cat.empty else None
+period       = m.compute_period_metrics(fdf, top_category=top_cat)
+sr_trend     = m.savings_rate_by_month(df)           # always full dataset for trend
 dow_spend    = m.spend_by_dow(fdf)
 top_txns     = m.top_expenses(fdf, n=3)
 subs         = m.subscription_breakdown(fdf)
 delta        = m.previous_period(df, sel_month) if sel_month != "All" else m.PeriodDelta()
-top_cat      = exp_by_cat.iloc[0]["Category"] if not exp_by_cat.empty else None
 
 
 # ══════════════════════════════════════════════════════════════════════════════
 #  §0  VERDICT BANNER
+#  Answers "Am I okay?" in under 3 seconds.
+#  One score. One sentence. Three numbers.
 # ══════════════════════════════════════════════════════════════════════════════
-def _verdict_headline(score: int, net: float, sr: float, top_cat) -> str:
-    tc = top_cat or "spending"
-    if score >= 80: return f"You're in great financial shape — saving {sr:.0f}% of income."
-    if score >= 65: return f"Your finances are healthy. Watching {tc} will push the score higher."
-    if score >= 45: return f"A few things need attention. {tc.capitalize()} is the best place to start."
-    return "Spending is outpacing income — let's find where to cut." if net < 0 \
-        else "Some areas are under pressure. Small changes will make a real difference."
-
 
 ui.verdict_banner(
-    score       = period.health_score,
-    score_label = period.score_label,
-    score_color = period.score_color,
-    score_bg    = period.score_bg,
-    headline    = _verdict_headline(period.health_score, period.net, period.savings_rate, top_cat),
-    sub         = (
-        f"Income <b>{ui.fmt_money(period.total_income, sym)}</b> &nbsp;&middot;&nbsp; "
-        f"Expenses <b>{ui.fmt_money(period.total_expense, sym)}</b> &nbsp;&middot;&nbsp; "
+    score        = period.health_score,
+    score_label  = period.score_label,
+    headline     = period.verdict_headline,
+    sub_html     = (
+        f"Earned <b>{ui.fmt_money(period.total_income, sym)}</b>"
+        f" &nbsp;&middot;&nbsp; "
+        f"Spent <b>{ui.fmt_money(period.total_expense, sym)}</b>"
+        f" &nbsp;&middot;&nbsp; "
         f"Saved <b>{ui.fmt_money(period.net, sym, signed=True)}</b>"
     ),
 )
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-#  §1  KPI STRIP
+#  §1  KPI STRIP  — three numbers every user understands immediately
+#
+#  Deliberately three (not four):
+#    1. Money left over  — the headline result, positive or negative
+#    2. Saved this month — savings rate as %, relatable goal
+#    3. Avg daily spend  — grounding number, easy to act on
+#
+#  Removed: "Flexible spending" — finance jargon unfamiliar to everyday users.
 # ══════════════════════════════════════════════════════════════════════════════
-k1, k2, k3, k4 = st.columns(4)
 
+k1, k2, k3 = st.columns(3)
+
+# ── KPI 1: Money left over ────────────────────────────────────────────────────
 with k1:
-    color = "#1a9e75" if period.net >= 0 else "#d94838"
+    net_color = ui.COLOR["income"] if period.net >= 0 else ui.COLOR["expense"]
     ui.kpi_card(
-        "Money Left Over",
-        ui.fmt_money(period.net, sym, signed=True),
-        color,
-        ui.delta_badge(period.net, delta.prev_net) + " vs last period",
+        label         = "Money left over",
+        value         = ui.fmt_money(period.net, sym, signed=True),
+        value_color   = net_color,
+        delta_html    = ui.delta_badge(period.net, delta.prev_net),
+        delta_context = "vs last month",
     )
+
+# ── KPI 2: Saved this month ───────────────────────────────────────────────────
 with k2:
-    color = "#1a9e75" if period.savings_rate >= 20 else "#e09a2e" if period.savings_rate >= 10 else "#d94838"
+    sr = period.savings_rate
+    if sr >= 20:
+        sr_color   = ui.COLOR["income"]
+        sr_context = f"Goal: 20% &nbsp;&middot;&nbsp; You&#39;re ahead"
+    elif sr >= 10:
+        sr_color   = ui.COLOR["accent"]
+        sr_context = f"Goal: 20% &nbsp;&middot;&nbsp; Getting there"
+    elif sr > 0:
+        sr_color   = ui.COLOR["warning"]
+        sr_context = f"Goal: 20% &nbsp;&middot;&nbsp; Keep improving"
+    elif period.net >= 0:
+        sr_color   = ui.COLOR["warning"]
+        sr_context = "Nothing saved yet this period"
+    else:
+        sr_color   = ui.COLOR["expense"]
+        sr_context = "Spending more than you earn"
+
     ui.kpi_card(
-        "Savings Rate",
-        ui.fmt_pct(period.savings_rate),
-        color,
-        f'<span class="neu">Goal: 20% &nbsp;&middot;&nbsp; You\'re at {period.savings_rate:.0f}%</span>',
+        label         = "Saved this month",
+        value         = ui.fmt_pct(sr, decimals=0),
+        value_color   = sr_color,
+        delta_html    = f'<span class="neu">{sr_context}</span>',
+        delta_context = "",
     )
+
+# ── KPI 3: Avg daily spend ────────────────────────────────────────────────────
 with k3:
     ui.kpi_card(
-        "Avg Daily Spend",
-        ui.fmt_money(period.avg_daily_spend, sym),
-        "#2a1c10",
-        f'<span class="neu">Across {period.spending_days} spending days</span>',
-    )
-with k4:
-    color = "#d94838" if period.flex_pct > 50 else "#e09a2e" if period.flex_pct > 35 else "#1a9e75"
-    ui.kpi_card(
-        "Flexible Spending",
-        ui.fmt_pct(period.flex_pct, decimals=0),
-        color,
-        f'<span class="neu">{ui.fmt_money(period.flex_total, sym)} of {ui.fmt_money(period.total_expense, sym)} is cuttable</span>',
+        label         = "Avg daily spend",
+        value         = ui.fmt_money(period.avg_daily_spend, sym),
+        value_color   = ui.COLOR["text_primary"],
+        delta_html    = f'<span class="neu">Across {period.spending_days} days</span>',
+        delta_context = "",
     )
 
 
 # ══════════════════════════════════════════════════════════════════════════════
 #  §2  WATERFALL  +  FIXED vs FLEXIBLE  +  BUDGET CHECK
 # ══════════════════════════════════════════════════════════════════════════════
-ui.section("💧 Where Did the Money Go?")
+ui.section_header("💧 Where Did the Money Go?")
 col_wf, col_right = st.columns([1.6, 1])
 
 with col_wf:
-    ui.chart_card_start()
+    ui.card_start()
     st.plotly_chart(
         charts.waterfall_chart(exp_by_cat, period.total_income, period.total_expense, period.net, sym),
         use_container_width=True, config={"displayModeBar": False},
     )
-    ui.chart_card_end()
+    ui.card_end()
 
 with col_right:
     # Fixed vs flexible donut
     if period.total_expense > 0:
-        ui.chart_card_start("Fixed vs Flexible")
+        ui.card_start("Fixed vs Flexible")
         st.plotly_chart(
             charts.fixed_vs_flex_donut(period.fixed_total, period.flex_total, period.total_expense, sym),
             use_container_width=True, config={"displayModeBar": False},
         )
-        ui.chart_card_end()
+        ui.card_end()
 
     # Budget check bars
-    ui.chart_card_start("Budget Check")
+    ui.card_start("Budget Check")
     for cat, rec_pct in list(BUDGET_GUIDE.items())[:5]:
         actual    = float(exp_by_cat[exp_by_cat["Category"] == cat]["Total"].sum())
         actual_pct = (actual / period.total_income * 100) if period.total_income > 0 else 0.0
         ui.budget_bar(cat, ui.fmt_money(actual, sym), actual_pct, rec_pct)
-    ui.chart_card_end()
+    ui.card_end()
 
 
 # ══════════════════════════════════════════════════════════════════════════════
 #  §3  TREEMAP  +  TOP TRANSACTIONS  +  SUBSCRIPTIONS
 # ══════════════════════════════════════════════════════════════════════════════
-ui.section("🗂 Spending Breakdown")
+ui.section_header("🗂 Spending Breakdown")
 col_tree, col_detail = st.columns([1.5, 1])
 
 with col_tree:
     if not exp_by_cat.empty:
-        ui.chart_card_start()
+        ui.card_start()
         st.plotly_chart(
             charts.spending_treemap(exp_by_cat, sym),
             use_container_width=True, config={"displayModeBar": False},
         )
-        ui.chart_card_end()
+        ui.card_end()
 
 with col_detail:
     st.markdown('<div class="cc-title" style="margin-bottom:10px">Biggest Single Spends</div>', unsafe_allow_html=True)
@@ -293,30 +311,30 @@ with col_detail:
 # ══════════════════════════════════════════════════════════════════════════════
 #  §4  DAY-OF-WEEK  +  SAVINGS RATE TREND
 # ══════════════════════════════════════════════════════════════════════════════
-ui.section("📅 Spending Patterns")
+ui.section_header("📅 Spending Patterns")
 col_dow, col_sr = st.columns(2)
 
 with col_dow:
-    ui.chart_card_start("When Do You Spend?")
+    ui.card_start("When Do You Spend?")
     st.plotly_chart(
         charts.dow_bar(dow_spend, sym),
         use_container_width=True, config={"displayModeBar": False},
     )
-    ui.chart_card_end()
+    ui.card_end()
 
 with col_sr:
-    ui.chart_card_start("Savings Rate Over Time")
+    ui.card_start("Savings Rate Over Time")
     st.plotly_chart(
         charts.savings_trend(sr_trend),
         use_container_width=True, config={"displayModeBar": False},
     )
-    ui.chart_card_end()
+    ui.card_end()
 
 
 # ══════════════════════════════════════════════════════════════════════════════
 #  §5  INSIGHTS  ·  ACTIONS  ·  AI COACH  (tabbed)
 # ══════════════════════════════════════════════════════════════════════════════
-ui.section("💡 Insights & Actions")
+ui.section_header("💡 Insights & Actions")
 tab_story, tab_actions, tab_ai = st.tabs(["📖 What happened", "🚀 What to do", "✦ AI Coach"])
 
 # ── Tab 1: Story ──────────────────────────────────────────────────────────────
@@ -478,7 +496,7 @@ with tab_ai:
 # ══════════════════════════════════════════════════════════════════════════════
 #  §6  TRANSACTION TABLE
 # ══════════════════════════════════════════════════════════════════════════════
-ui.section("🔎 Transaction Explorer")
+ui.section_header("🔎 Transaction Explorer")
 
 display_df = (
     fdf[["Date", "Description", "Amount", "Category", "Type", "Month"]]
