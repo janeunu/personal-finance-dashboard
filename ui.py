@@ -724,33 +724,22 @@ def transaction_card(
 
 # ── Subscription list ─────────────────────────────────────────────────────────
 def subscription_list(
-    items:     list[tuple[str, float]],   # [(name, amount), ...]
-    sub_total: float,
-    sym:       str = "$",
+    rows_html:  str,   # pre-built HTML rows from app.py
+    total_str:  str,   # pre-formatted total e.g. "$89.00"
 ) -> None:
-    rows = "".join(
-        f'<div class="mh-sub-row">'
-        f'<span class="mh-sub-name">{name}</span>'
-        f'<span class="mh-sub-amount">{fmt_money(amt, sym)}</span>'
-        f'</div>'
-        for name, amt in items
-    )
     total_row = (
         f'<div style="display:flex;justify-content:space-between;'
         f'padding:10px 0 2px;font-size:12.5px;color:{COLOR["text_muted"]};font-weight:500">'
         f'<span>Total</span>'
         f'<span style="font-family:\'Plus Jakarta Sans\',sans-serif;color:{COLOR["expense"]};'
         f'font-size:15px;font-weight:500;font-variant-numeric:tabular-nums">'
-        f'{fmt_money(sub_total, sym)}</span>'
+        f'{total_str}</span>'
         f'</div>'
     )
     st.markdown(
-        f'<div class="mh-card" style="padding:14px 18px">{rows}{total_row}</div>',
+        f'<div class="mh-card" style="padding:14px 18px">{rows_html}{total_row}</div>',
         unsafe_allow_html=True,
     )
-
-
-# ── AI coach panel ────────────────────────────────────────────────────────────
 def ai_panel(text: str) -> None:
     st.markdown(
         f'<div class="mh-ai-panel">'
