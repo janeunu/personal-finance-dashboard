@@ -241,11 +241,11 @@ with k3:
 # ══════════════════════════════════════════════════════════════════════════════
 #  §2  WATERFALL  +  FIXED vs FLEXIBLE  +  BUDGET CHECK
 # ══════════════════════════════════════════════════════════════════════════════
-ui.section_header("💧 Where Did the Money Go?")
+ui.section_header("Where did the money go?")
 col_wf, col_right = st.columns([1.6, 1])
 
 with col_wf:
-    ui.card_start()
+    ui.card_start("Cash flow")
     st.plotly_chart(
         charts.waterfall_chart(exp_by_cat, period.total_income, period.total_expense, period.net, sym),
         use_container_width=True, config={"displayModeBar": False},
@@ -253,28 +253,48 @@ with col_wf:
     ui.card_end()
 
 with col_right:
-    # Fixed vs flexible donut
-    if period.total_expense > 0:
-        ui.card_start("Fixed vs Flexible")
-        st.plotly_chart(
-            charts.fixed_vs_flex_donut(period.fixed_total, period.flex_total, period.total_expense, sym),
-            use_container_width=True, config={"displayModeBar": False},
-        )
-        ui.card_end()
+    # Two plain stat rows replace the confusing Fixed vs Flexible donut
+    # "Fixed bills" and "Cuttable spend" are self-explanatory
+    st.markdown(
+        f'<div class="mh-card" style="margin-bottom:10px">'
+        f'  <div class="mh-card-title">Your spending split</div>'
+        f'  <div style="margin-bottom:14px">'
+        f'    <div style="font-size:11px;font-weight:500;text-transform:uppercase;'
+        f'letter-spacing:.06em;color:#9CA3AF;margin-bottom:4px">Fixed bills</div>'
+        f'    <div style="font-family:\'Plus Jakarta Sans\',sans-serif;font-size:24px;'
+        f'font-weight:500;color:#374151;font-variant-numeric:tabular-nums">'
+        f'{ui.fmt_money(period.fixed_total, sym)}</div>'
+        f'    <div style="font-size:12px;color:#9CA3AF;margin-top:2px">'
+        f'Rent, insurance, utilities — can\'t easily cut</div>'
+        f'  </div>'
+        f'  <div style="height:0.5px;background:#F3F4F6;margin-bottom:14px"></div>'
+        f'  <div>'
+        f'    <div style="font-size:11px;font-weight:500;text-transform:uppercase;'
+        f'letter-spacing:.06em;color:#9CA3AF;margin-bottom:4px">Cuttable spend</div>'
+        f'    <div style="font-family:\'Plus Jakarta Sans\',sans-serif;font-size:24px;'
+        f'font-weight:500;color:#2563EB;font-variant-numeric:tabular-nums">'
+        f'{ui.fmt_money(period.flex_total, sym)}</div>'
+        f'    <div style="font-size:12px;color:#9CA3AF;margin-top:2px">'
+        f'Groceries, dining, shopping — adjustable</div>'
+        f'  </div>'
+        f'</div>',
+        unsafe_allow_html=True,
+    )
 
     # Budget check bars
-    ui.card_start("Budget Check")
+    ui.card_start("Budget check")
     for cat, rec_pct in list(BUDGET_GUIDE.items())[:5]:
-        actual    = float(exp_by_cat[exp_by_cat["Category"] == cat]["Total"].sum())
+        actual     = float(exp_by_cat[exp_by_cat["Category"] == cat]["Total"].sum())
         actual_pct = (actual / period.total_income * 100) if period.total_income > 0 else 0.0
         ui.budget_bar(cat, ui.fmt_money(actual, sym), actual_pct, rec_pct)
     ui.card_end()
 
 
+
 # ══════════════════════════════════════════════════════════════════════════════
 #  §3  TREEMAP  +  TOP TRANSACTIONS  +  SUBSCRIPTIONS
 # ══════════════════════════════════════════════════════════════════════════════
-ui.section_header("🗂 Spending Breakdown")
+ui.section_header("Spending breakdown")
 col_tree, col_detail = st.columns([1.5, 1])
 
 with col_tree:
@@ -297,11 +317,11 @@ with col_detail:
         )
 
     if not subs.empty:
-        st.markdown('<div class="cc-title" style="margin:16px 0 10px">Subscriptions</div>', unsafe_allow_html=True)
+        st.markdown('<div class="mh-card-title" style="margin:16px 0 10px">Subscriptions</div>', unsafe_allow_html=True)
         rows_html = "".join(
-            f'<div class="sub-row">'
-            f'<span class="sub-name">{r["Description"]}</span>'
-            f'<span class="sub-amt">{ui.fmt_money(r["Amount"], sym)}</span>'
+            f'<div class="mh-sub-row">'
+            f'<span class="mh-sub-name">{r["Description"]}</span>'
+            f'<span class="mh-sub-amount">{ui.fmt_money(r["Amount"], sym)}</span>'
             f'</div>'
             for _, r in subs.iterrows()
         )
@@ -311,7 +331,7 @@ with col_detail:
 # ══════════════════════════════════════════════════════════════════════════════
 #  §4  DAY-OF-WEEK  +  SAVINGS RATE TREND
 # ══════════════════════════════════════════════════════════════════════════════
-ui.section_header("📅 Spending Patterns")
+ui.section_header("Spending patterns")
 col_dow, col_sr = st.columns(2)
 
 with col_dow:
@@ -334,7 +354,7 @@ with col_sr:
 # ══════════════════════════════════════════════════════════════════════════════
 #  §5  INSIGHTS  ·  ACTIONS  ·  AI COACH  (tabbed)
 # ══════════════════════════════════════════════════════════════════════════════
-ui.section_header("💡 Insights & Actions")
+ui.section_header("Insights & actions")
 tab_story, tab_actions, tab_ai = st.tabs(["📖 What happened", "🚀 What to do", "✦ AI Coach"])
 
 # ── Tab 1: Story ──────────────────────────────────────────────────────────────
@@ -496,7 +516,7 @@ with tab_ai:
 # ══════════════════════════════════════════════════════════════════════════════
 #  §6  TRANSACTION TABLE
 # ══════════════════════════════════════════════════════════════════════════════
-ui.section_header("🔎 Transaction Explorer")
+ui.section_header("Transaction explorer")
 
 display_df = (
     fdf[["Date", "Description", "Amount", "Category", "Type", "Month"]]

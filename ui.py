@@ -215,12 +215,12 @@ html, body, [class*="css"] {
 .mh-kpi-delta .neu { color: #9CA3AF; }
 
 .mh-section {
-    font-size: 10px;
+    font-size: 12px;
     font-weight: 500;
-    letter-spacing: .09em;
+    letter-spacing: .06em;
     text-transform: uppercase;
-    color: #9CA3AF;
-    margin: 28px 0 14px;
+    color: #6B7280;
+    margin: 32px 0 16px;
     display: flex;
     align-items: center;
     gap: 10px;
@@ -228,7 +228,7 @@ html, body, [class*="css"] {
 .mh-section::after {
     content: "";
     flex: 1;
-    height: 1px;
+    height: 0.5px;
     background: #E5E7EB;
 }
 

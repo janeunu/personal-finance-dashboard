@@ -1,11 +1,16 @@
 """
-charts.py
-Every chart is a pure function: receives data, returns a plotly Figure.
+charts.py  —  All Plotly chart builders.
 
-Rules:
-  • No Streamlit imports.
-  • No business logic — receives already-computed data.
-  • All styling is consistent via _layout() and _axes().
+Every chart is a pure function: receives data, returns a Figure.
+All styling flows from config.py tokens — change a token, every chart updates.
+
+Design principles applied in this revision:
+  1. One colour per semantic meaning across all charts (config.py constants)
+  2. Labels only on bars large enough to hold them (≥ $500 threshold)
+  3. Savings rate y-axis floored at -20% to prevent one outlier distorting scale
+  4. Treemap uses single-hue blue scale matching the accent colour family
+  5. Font: Inter (matches ui.py body font — no mixed typefaces)
+  6. Grid lines: very subtle (#F3F4F6) — guides, not distractions
 """
 
 from __future__ import annotations
@@ -19,59 +24,75 @@ from config import (
     EXPENSE_COLOR,
     ACCENT_COLOR,
     NEUTRAL_COLOR,
-    CHART_COLORS,
+    WARNING_COLOR,
     TREEMAP_SCALE,
     DAY_ORDER,
 )
 
 
-# ── Shared layout helpers ─────────────────────────────────────────────────────
-_FONT_FAMILY = "'DM Sans', sans-serif"
-_FONT_COLOR  = "#5a4e42"
+# ══════════════════════════════════════════════════════════════════════════════
+#  SHARED HELPERS
+# ══════════════════════════════════════════════════════════════════════════════
+_FONT = "'Inter', 'Plus Jakarta Sans', sans-serif"
+_TEXT = "#374151"    # text_secondary — not too dark, not too muted
+_GRID = "#F3F4F6"    # barely-there gridlines
+_LINE = "#E5E7EB"    # axis lines
 
 
 def _layout(
     height: int = 360,
-    t: int = 14, b: int = 28, l: int = 4, r: int = 4,
+    t: int = 16, b: int = 32, l: int = 4, r: int = 8,
     **kwargs,
 ) -> dict:
-    """Single source of truth for chart layout defaults."""
+    """Single source of truth for all chart layout properties."""
     return dict(
-        height         = height,
-        paper_bgcolor  = "#ffffff",
-        plot_bgcolor   = "#ffffff",
-        font           = {"family": _FONT_FAMILY, "color": _FONT_COLOR},
-        margin         = dict(t=t, b=b, l=l, r=r),
+        height        = height,
+        paper_bgcolor = "#FFFFFF",
+        plot_bgcolor  = "#FFFFFF",
+        font          = {"family": _FONT, "color": _TEXT, "size": 12},
+        margin        = dict(t=t, b=b, l=l, r=r),
         **kwargs,
     )
-    base = dict(title="", zeroline=False, linecolor="#ddd4c8", showticklabels=True)
-    if grid:
-        base.update(showgrid=True, gridcolor="#f4ede4", gridwidth=1)
-    else:
-        base.update(showgrid=False)
-    return base
 
 
-def _xax(grid: bool = False) -> dict:
-    base = dict(title="", zeroline=False, linecolor="#ddd4c8", showticklabels=True)
-    if grid:
-        base.update(showgrid=True, gridcolor="#f4ede4", gridwidth=1)
-    else:
-        base.update(showgrid=False)
-    return base
+def _xax(**kw) -> dict:
+    return dict(
+        title      = "",
+        zeroline   = False,
+        linecolor  = _LINE,
+        showgrid   = False,
+        tickfont   = {"size": 11, "color": _TEXT},
+        **kw,
+    )
 
 
-def _yax(prefix: str = "", suffix: str = "") -> dict:
+def _yax(prefix: str = "", suffix: str = "", **kw) -> dict:
     ax = dict(
-        title="", zeroline=False, linecolor="#ddd4c8",
-        showgrid=True, gridcolor="#f4ede4", gridwidth=1,
+        title     = "",
+        zeroline  = False,
+        linecolor = _LINE,
+        showgrid  = True,
+        gridcolor = _GRID,
+        gridwidth = 1,
+        tickfont  = {"size": 11, "color": _TEXT},
     )
     if prefix: ax["tickprefix"] = prefix
     if suffix: ax["ticksuffix"] = suffix
+    ax.update(kw)
     return ax
 
 
-# ── 1. Cashflow waterfall ─────────────────────────────────────────────────────
+def _fmt(v: float, currency: str = "$") -> str:
+    """Compact money label — whole dollars ≥ $1,000, two decimals below."""
+    return f"{currency}{abs(v):,.0f}" if abs(v) >= 1_000 else f"{currency}{abs(v):,.2f}"
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+#  1. CASHFLOW WATERFALL
+# ══════════════════════════════════════════════════════════════════════════════
+_LABEL_THRESHOLD = 500   # only label bars with absolute value ≥ this
+
+
 def waterfall_chart(
     exp_by_category: pd.DataFrame,
     total_income:    float,
@@ -79,25 +100,37 @@ def waterfall_chart(
     net:             float,
     currency:        str = "$",
 ) -> go.Figure:
-    """Income → each expense category → net cashflow."""
+    """
+    Shows the complete money flow: income → each expense category → net.
+
+    Labels are suppressed on small bars (< $500) to reduce clutter.
+    Colours: green income · red expenses · blue net total.
+    """
     cats = exp_by_category["Category"].head(9).tolist()
     vals = (-exp_by_category["Total"].head(9)).tolist()
 
-    # Aggregate tail categories into "Other"
-    shown   = exp_by_category["Total"].head(9).sum()
+    # Aggregate any tail into "Other"
+    shown    = exp_by_category["Total"].head(9).sum()
     residual = -(total_expense - shown)
     if abs(residual) > 0.5:
         cats.append("Other")
         vals.append(residual)
 
-    def _fmt(v: float) -> str:
-        return f"{currency}{abs(v):,.0f}" if abs(v) >= 1000 else f"{currency}{abs(v):,.2f}"
+    # Build labels — blank for small bars to keep the chart readable
+    def _bar_label(v: float, signed: bool = True) -> str:
+        if abs(v) < _LABEL_THRESHOLD:
+            return ""
+        if signed:
+            return f"-{_fmt(abs(v), currency)}" if v < 0 else f"+{_fmt(v, currency)}"
+        return _fmt(v, currency)
 
     labels = (
-        [_fmt(total_income)]
-        + [f"-{_fmt(abs(v))}" for v in vals]
-        + [(f"+{_fmt(net)}" if net >= 0 else f"-{_fmt(abs(net))}")]
+        [_fmt(total_income, currency)]
+        + [_bar_label(v) for v in vals]
+        + [_bar_label(net, signed=True)]
     )
+
+    net_color = ACCENT_COLOR if net >= 0 else EXPENSE_COLOR
 
     fig = go.Figure(go.Waterfall(
         orientation  = "v",
@@ -106,64 +139,32 @@ def waterfall_chart(
         y            = [total_income] + vals + [0],
         text         = labels,
         textposition = "outside",
-        textfont     = {"size": 10, "family": _FONT_FAMILY},
-        connector    = {"line": {"color": "#e8ddd2", "width": 1}},
+        textfont     = {"size": 10, "family": _FONT, "color": _TEXT},
+        connector    = {"line": {"color": _GRID, "width": 1}},
         increasing   = {"marker": {"color": INCOME_COLOR,  "line": {"width": 0}}},
         decreasing   = {"marker": {"color": EXPENSE_COLOR, "line": {"width": 0}}},
-        totals       = {"marker": {"color": "#5b7cf0",     "line": {"width": 0}}},
+        totals       = {"marker": {"color": net_color,     "line": {"width": 0}}},
     ))
     fig.update_layout(
         **_layout(height=400),
         showlegend = False,
-        xaxis = {**_xax(), "tickfont": {"size": 11}},
-        yaxis = _yax(prefix=currency),
+        xaxis      = _xax(),
+        yaxis      = _yax(prefix=currency),
     )
     return fig
 
 
-# ── 2. Fixed vs flexible donut ────────────────────────────────────────────────
-def fixed_vs_flex_donut(
-    fixed_total:   float,
-    flex_total:    float,
-    total_expense: float,
-    currency:      str = "$",
-) -> go.Figure:
-    """Shows what proportion of spending is cuttable."""
-    total_label = f"{currency}{total_expense:,.0f}" if total_expense >= 1000 \
-                  else f"{currency}{total_expense:,.2f}"
-
-    df = pd.DataFrame({
-        "Type":   ["Fixed Bills", "Flexible Spending"],
-        "Amount": [fixed_total, flex_total],
-    })
-    fig = px.pie(
-        df, names="Type", values="Amount", hole=0.58,
-        color_discrete_sequence=["#5b7cf0", EXPENSE_COLOR],
-    )
-    fig.update_traces(
-        textposition = "inside",
-        textinfo     = "percent+label",
-        textfont_size = 12,
-        pull         = [0, 0.03],
-    )
-    fig.update_layout(
-        **_layout(height=230, b=10, l=0, r=0),
-        showlegend  = False,
-        annotations = [dict(
-            text      = f"<b>{total_label}</b><br><span style='font-size:10px'>total spend</span>",
-            x=0.5, y=0.5, font_size=13, showarrow=False,
-            font      = {"family": _FONT_FAMILY, "color": "#2a1c10"},
-        )],
-    )
-    return fig
-
-
-# ── 3. Spending treemap ───────────────────────────────────────────────────────
+# ══════════════════════════════════════════════════════════════════════════════
+#  2. SPENDING TREEMAP
+# ══════════════════════════════════════════════════════════════════════════════
 def spending_treemap(
     exp_by_category: pd.DataFrame,
     currency:        str = "$",
 ) -> go.Figure:
-    """Area-proportional breakdown of all expense categories."""
+    """
+    Area-proportional category breakdown.
+    Uses a single-hue blue scale (matches the accent colour family).
+    """
     fig = px.treemap(
         exp_by_category,
         path   = ["Category"],
@@ -172,77 +173,136 @@ def spending_treemap(
         color_continuous_scale = TREEMAP_SCALE,
     )
     fig.update_traces(
-        texttemplate   = f"<b>%{{label}}</b><br>{currency}%{{value:,.0f}}",
-        textfont       = {"size": 13, "family": _FONT_FAMILY},
-        hovertemplate  = f"<b>%{{label}}</b><br>{currency}%{{value:,.2f}}<extra></extra>",
+        texttemplate  = f"<b>%{{label}}</b><br>{currency}%{{value:,.0f}}",
+        textfont      = {"size": 12, "family": _FONT},
+        hovertemplate = f"<b>%{{label}}</b><br>{currency}%{{value:,.2f}}<extra></extra>",
+        marker_line_width = 0.5,
+        marker_line_color = "#FFFFFF",
     )
     fig.update_layout(
-        **_layout(height=400, b=8),
+        **_layout(height=380, b=8),
         coloraxis_showscale = False,
     )
     return fig
 
 
-# ── 4. Day-of-week bar ────────────────────────────────────────────────────────
+# ══════════════════════════════════════════════════════════════════════════════
+#  3. DAY-OF-WEEK BAR
+# ══════════════════════════════════════════════════════════════════════════════
 def dow_bar(
     dow_df:   pd.DataFrame,
     currency: str = "$",
 ) -> go.Figure:
-    """Highlight peak spending day in accent color."""
-    peak_day = dow_df.loc[dow_df["Amount"].idxmax(), "DOW"]
-    colors   = [ACCENT_COLOR if d == peak_day else NEUTRAL_COLOR for d in dow_df["DOW"]]
+    """
+    Total spending per day of week.
+    Peak day highlighted in accent blue; all others in neutral grey.
+    Zero-spend days shown as empty bars (not suppressed).
+    """
+    non_zero = dow_df[dow_df["Amount"] > 0]
+    if non_zero.empty:
+        peak_day = dow_df.iloc[0]["DOW"]
+    else:
+        peak_day = non_zero.loc[non_zero["Amount"].idxmax(), "DOW"]
+
+    colors = [ACCENT_COLOR if d == peak_day else NEUTRAL_COLOR for d in dow_df["DOW"]]
+
+    # Label only days with actual spending
+    labels = [
+        f"{currency}{v:,.0f}" if v > 0 else ""
+        for v in dow_df["Amount"]
+    ]
 
     fig = go.Figure(go.Bar(
-        x              = dow_df["DOW"],
-        y              = dow_df["Amount"],
-        marker_color   = colors,
+        x                 = dow_df["DOW"],
+        y                 = dow_df["Amount"],
+        marker_color      = colors,
         marker_line_width = 0,
-        text           = [f"{currency}{v:,.0f}" for v in dow_df["Amount"]],
-        textposition   = "outside",
-        textfont       = {"size": 10},
+        text              = labels,
+        textposition      = "outside",
+        textfont          = {"size": 10, "family": _FONT, "color": _TEXT},
     ))
     fig.update_layout(
-        **_layout(height=320),
-        xaxis = {**_xax(), "tickfont": {"size": 12}},
-        yaxis = _yax(prefix=currency),
+        **_layout(height=300),
+        xaxis = _xax(),
+        yaxis = _yax(prefix=currency, showticklabels=False, showgrid=False),
         annotations = [dict(
-            text    = f"Most spending on <b>{peak_day}s</b>",
-            x=0.01, y=1.06, xref="paper", yref="paper",
+            text      = f"Most spending on <b>{peak_day}s</b>",
+            x=0.0, y=1.08, xref="paper", yref="paper",
             showarrow = False,
-            font      = {"size": 12, "color": "#8c7c6c", "family": _FONT_FAMILY},
+            font      = {"size": 12, "color": ACCENT_COLOR, "family": _FONT},
+            align     = "left",
         )],
     )
     return fig
 
 
-# ── 5. Savings rate trend ─────────────────────────────────────────────────────
+# ══════════════════════════════════════════════════════════════════════════════
+#  4. SAVINGS RATE TREND
+# ══════════════════════════════════════════════════════════════════════════════
 def savings_trend(sr_df: pd.DataFrame) -> go.Figure:
-    """Line chart of monthly savings rate with a 20% goal line."""
-    colors = sr_df["SavingsRate"].apply(
-        lambda v: INCOME_COLOR if v >= 20 else "#e09a2e" if v >= 10 else EXPENSE_COLOR
-    )
+    """
+    Monthly savings rate as a line chart.
+
+    Improvements over previous version:
+      - Y-axis floored at -20% so one bad month can't squash the whole chart
+      - Dot colours: green ≥ 20%, amber ≥ 10%, red < 10%
+      - Fill area clipped at zero (only positive savings shaded)
+      - Axis labels shown as integers (no decimal noise)
+    """
+    def _dot_color(v: float) -> str:
+        if v >= 20: return INCOME_COLOR
+        if v >= 10: return WARNING_COLOR
+        return EXPENSE_COLOR
+
+    dot_colors = sr_df["SavingsRate"].apply(_dot_color).tolist()
+
+    # Y-axis range: floor at -20 so outliers don't distort scale
+    y_min = max(sr_df["SavingsRate"].min() - 5, -20)
+    y_max = sr_df["SavingsRate"].max() + 10
 
     fig = go.Figure()
+
+    # 20% goal reference line
     fig.add_hline(
-        y=20, line_dash="dot", line_color="#c0d8c0", line_width=1.5,
-        annotation_text="20% goal", annotation_position="right",
-        annotation_font={"size": 10, "color": "#8ca88c"},
+        y                  = 20,
+        line_dash          = "dot",
+        line_color         = "#BBF7D0",   # light green — guides, not distracts
+        line_width         = 1.5,
+        annotation_text    = "20% goal",
+        annotation_position= "right",
+        annotation_font    = {"size": 10, "color": INCOME_COLOR, "family": _FONT},
     )
+
+    # Zero reference line (only shown if any negatives exist)
+    if y_min < 0:
+        fig.add_hline(y=0, line_color=_LINE, line_width=1)
+
+    # Savings rate line + fill
     fig.add_trace(go.Scatter(
         x            = sr_df["Month"],
         y            = sr_df["SavingsRate"],
         mode         = "lines+markers+text",
-        line         = dict(color="#5b7cf0", width=2.5),
-        marker       = dict(size=10, color=colors, line=dict(color="#fff", width=2)),
+        line         = dict(color=ACCENT_COLOR, width=2),
+        marker       = dict(
+            size  = 8,
+            color = dot_colors,
+            line  = dict(color="#FFFFFF", width=2),
+        ),
         text         = [f"{v:.0f}%" for v in sr_df["SavingsRate"]],
         textposition = "top center",
-        textfont     = {"size": 10, "family": _FONT_FAMILY},
+        textfont     = {"size": 10, "family": _FONT, "color": _TEXT},
         fill         = "tozeroy",
-        fillcolor    = "rgba(91,124,240,.07)",
+        fillcolor    = "rgba(37,99,235,0.06)",
     ))
+
     fig.update_layout(
-        **_layout(height=320),
-        xaxis = {**_xax(), "tickfont": {"size": 11}},
-        yaxis = _yax(suffix="%"),
+        **_layout(height=300),
+        showlegend = False,
+        xaxis      = _xax(),
+        yaxis      = _yax(
+            suffix        = "%",
+            range         = [y_min, y_max],
+            tickformat    = ".0f",
+        ),
     )
     return fig

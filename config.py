@@ -81,21 +81,27 @@ SCORE_HEALTHY    = 65
 SCORE_ATTENTION  = 45
 
 # ── Chart palette (consistent across all charts) ──────────────────────────────
-CHART_COLORS = [
-    "#5b7cf0", "#f0a05b", "#2db88a", "#f06b5b",
-    "#9b7cf0", "#5bbef0", "#f0c85b", "#d45b8a",
-    "#7cd45b", "#5b9af0", "#f07b5b", "#5bf0d4",
-]
+# ── Chart colour tokens — single source of truth ─────────────────────────────
+# These must match the semantic colours in ui.py COLOR exactly.
+# Charts use config constants; cards use ui.COLOR — both reference the same values.
+INCOME_COLOR  = "#16A34A"   # green  — income, healthy, on track
+EXPENSE_COLOR = "#EF4444"   # red    — expenses, concern
+ACCENT_COLOR  = "#2563EB"   # blue   — net cashflow, primary highlight
+NEUTRAL_COLOR = "#D1D5DB"   # grey   — inactive bars, background elements
+WARNING_COLOR = "#D97706"   # amber  — near limit, caution
 
+# Treemap: single-hue blue scale (lightest → darkest)
+# Matches ACCENT_COLOR family — one cohesive system across all charts
 TREEMAP_SCALE = [
-    "#fef0eb", "#f5c4ab", "#ec996b",
-    "#e06d35", "#c8501a", "#8c300a",
+    "#EFF6FF", "#BFDBFE", "#93C5FD",
+    "#60A5FA", "#2563EB", "#1D4ED8",
 ]
 
-INCOME_COLOR  = "#2db88a"
-EXPENSE_COLOR = "#f06b5b"
-ACCENT_COLOR  = "#e06d35"
-NEUTRAL_COLOR = "#d4c4b4"
+# Multi-series palette (for categoricals — kept minimal)
+CHART_COLORS = [
+    "#2563EB", "#16A34A", "#EF4444", "#D97706",
+    "#7C3AED", "#0891B2", "#DB2777", "#65A30D",
+]
 
 # ── Encoding candidates (ordered by global prevalence) ───────────────────────
 CSV_ENCODINGS = [
