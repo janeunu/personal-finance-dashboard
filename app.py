@@ -261,64 +261,83 @@ with k4:
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-#  §2  WATERFALL  +  FIXED vs FLEXIBLE  +  BUDGET CHECK
+#  §2  WATERFALL  +  SPENDING SPLIT  +  BUDGET CHECK
+#
+#  Chart titles are plain <p> elements above the chart, NOT card wrappers.
+#  card_start()/card_end() around st.plotly_chart() create ghost boxes because
+#  Streamlit wraps each st.* call in its own container — the HTML div from
+#  card_start() is not a real parent of the subsequent plotly chart element.
+#
+#  Correct pattern: one st.markdown() call = one real HTML block.
+#  Charts sit directly on the page — their white paper_bgcolor is the "card".
 # ══════════════════════════════════════════════════════════════════════════════
 ui.section_header("Where did the money go?")
 col_wf, col_right = st.columns([1.6, 1])
 
 with col_wf:
-    ui.card_start("Cash flow")
+    st.markdown(
+        '<p style="font-size:11px;font-weight:600;text-transform:uppercase;'
+        'letter-spacing:.06em;color:#64748B;margin-bottom:6px">Cash flow</p>',
+        unsafe_allow_html=True,
+    )
     st.plotly_chart(
         charts.waterfall_chart(exp_by_cat, period.total_income, period.total_expense, period.net, sym),
         use_container_width=True, config={"displayModeBar": False},
     )
-    ui.card_end()
 
 with col_right:
-    # Two plain stat rows replace the confusing Fixed vs Flexible donut
-    # "Fixed bills" and "Cuttable spend" are self-explanatory
+    # Spending split — entire card in one st.markdown() → renders correctly
     st.markdown(
         f'<div class="mh-card" style="margin-bottom:10px">'
-        f'  <div class="mh-card-title">Your spending split</div>'
-        f'  <div style="margin-bottom:14px">'
-        f'    <div style="font-size:11px;font-weight:500;text-transform:uppercase;'
-        f'letter-spacing:.06em;color:#9CA3AF;margin-bottom:4px">Fixed bills</div>'
-        f'    <div style="font-family:\'Inter\',sans-serif;font-size:24px;'
-        f'font-weight:500;color:#374151;font-variant-numeric:tabular-nums">'
-        f'{ui.fmt_money(period.fixed_total, sym)}</div>'
-        f'    <div style="font-size:12px;color:#9CA3AF;margin-top:2px">'
-        f'Rent, insurance, utilities — can\'t easily cut</div>'
-        f'  </div>'
-        f'  <div style="height:0.5px;background:#F3F4F6;margin-bottom:14px"></div>'
-        f'  <div>'
-        f'    <div style="font-size:11px;font-weight:500;text-transform:uppercase;'
-        f'letter-spacing:.06em;color:#9CA3AF;margin-bottom:4px">Cuttable spend</div>'
-        f'    <div style="font-family:\'Inter\',sans-serif;font-size:24px;'
-        f'font-weight:500;color:#2563EB;font-variant-numeric:tabular-nums">'
-        f'{ui.fmt_money(period.flex_total, sym)}</div>'
-        f'    <div style="font-size:12px;color:#9CA3AF;margin-top:2px">'
-        f'Groceries, dining, shopping — adjustable</div>'
-        f'  </div>'
-        f'</div>',
+        f'<div class="mh-card-title">Your spending split</div>'
+        f'<div style="margin-bottom:14px">'
+        f'<div style="font-size:11px;font-weight:500;text-transform:uppercase;letter-spacing:.06em;color:#94A3B8;margin-bottom:4px">Fixed bills</div>'
+        f'<div style="font-size:24px;font-weight:600;color:#374151;font-variant-numeric:tabular-nums;letter-spacing:-0.5px">{ui.fmt_money(period.fixed_total, sym)}</div>'
+        f'<div style="font-size:12px;color:#94A3B8;margin-top:2px">Rent, utilities, insurance</div>'
+        f'</div>'
+        f'<div style="height:0.5px;background:#F1F5F9;margin-bottom:14px"></div>'
+        f'<div>'
+        f'<div style="font-size:11px;font-weight:500;text-transform:uppercase;letter-spacing:.06em;color:#94A3B8;margin-bottom:4px">Cuttable spend</div>'
+        f'<div style="font-size:24px;font-weight:600;color:#2563EB;font-variant-numeric:tabular-nums;letter-spacing:-0.5px">{ui.fmt_money(period.flex_total, sym)}</div>'
+        f'<div style="font-size:12px;color:#94A3B8;margin-top:2px">Groceries, dining, shopping</div>'
+        f'</div></div>',
         unsafe_allow_html=True,
     )
 
-    # Budget check bars — only show categories the user actually spent in
-    ui.card_start("Budget check")
+    # Budget check — all bars built as one HTML string, rendered in ONE call
+    bars_html = ""
     shown = 0
     for cat, rec_pct in BUDGET_GUIDE.items():
         actual = float(exp_by_cat[exp_by_cat["Category"] == cat]["Total"].sum())
         if actual == 0:
-            continue                          # skip irrelevant categories
+            continue
         actual_pct = (actual / period.total_income * 100) if period.total_income > 0 else 0.0
-        ui.budget_bar(cat, ui.fmt_money(actual, sym), actual_pct, rec_pct)
+        bar_w = min(actual_pct / rec_pct * 100, 108) if rec_pct else 0.0
+        if actual_pct > rec_pct:
+            color, status, sc = "#E11D48", "Over budget", "#E11D48"
+        elif actual_pct > rec_pct * 0.85:
+            color, status, sc = "#D97706", "Near limit", "#D97706"
+        else:
+            color, status, sc = "#059669", "On track", "#059669"
+        bars_html += (
+            f'<div style="margin-bottom:13px">'
+            f'<div style="display:flex;justify-content:space-between;align-items:center;'
+            f'font-size:12.5px;color:#374151;font-weight:500;margin-bottom:5px">'
+            f'<span>{cat} <span style="color:#94A3B8;font-weight:400;font-size:11.5px">{ui.fmt_money(actual, sym)}</span></span>'
+            f'<span style="font-size:11px;font-weight:500;color:{sc}">{status}</span></div>'
+            f'<div style="background:#F1F5F9;border-radius:3px;height:4px;overflow:hidden">'
+            f'<div style="width:{bar_w:.1f}%;height:100%;border-radius:3px;background:{color}"></div>'
+            f'</div></div>'
+        )
         shown += 1
         if shown == 5:
-            break                             # cap at 5 for layout balance
-    if shown == 0:
-        st.caption("No budget categories matched this period.")
-    ui.card_end()
+            break
 
+    if bars_html:
+        st.markdown(
+            f'<div class="mh-card"><div class="mh-card-title">Budget check</div>{bars_html}</div>',
+            unsafe_allow_html=True,
+        )
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -329,15 +348,14 @@ col_tree, col_detail = st.columns([1.5, 1])
 
 with col_tree:
     if not exp_by_cat.empty:
-        ui.card_start()
+        # No card wrapper — chart renders its own white background
         st.plotly_chart(
             charts.spending_treemap(exp_by_cat, sym),
             use_container_width=True, config={"displayModeBar": False},
         )
-        ui.card_end()
 
 with col_detail:
-    st.markdown('<div class="cc-title" style="margin-bottom:10px">Biggest Single Spends</div>', unsafe_allow_html=True)
+    st.markdown('<p style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:#64748B;margin-bottom:10px">Biggest single spends</p>', unsafe_allow_html=True)
     for _, row in top_txns.iterrows():
         ui.transaction_card(
             amount      = ui.fmt_money(abs(row["Amount"]), sym),
@@ -347,7 +365,7 @@ with col_detail:
         )
 
     if not subs.empty:
-        st.markdown('<div class="mh-card-title" style="margin:16px 0 10px">Subscriptions</div>', unsafe_allow_html=True)
+        st.markdown('<p style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:#64748B;margin:16px 0 10px">Subscriptions</p>', unsafe_allow_html=True)
         rows_html = "".join(
             f'<div class="mh-sub-row">'
             f'<span class="mh-sub-name">{r["Description"]}</span>'
@@ -365,20 +383,26 @@ ui.section_header("Spending patterns")
 col_dow, col_sr = st.columns(2)
 
 with col_dow:
-    ui.card_start("When Do You Spend?")
+    st.markdown(
+        '<p style="font-size:11px;font-weight:600;text-transform:uppercase;' +
+        'letter-spacing:.06em;color:#64748B;margin-bottom:6px">When do you spend?</p>',
+        unsafe_allow_html=True,
+    )
     st.plotly_chart(
         charts.dow_bar(dow_spend, sym),
         use_container_width=True, config={"displayModeBar": False},
     )
-    ui.card_end()
 
 with col_sr:
-    ui.card_start("Savings Rate Over Time")
+    st.markdown(
+        '<p style="font-size:11px;font-weight:600;text-transform:uppercase;' +
+        'letter-spacing:.06em;color:#64748B;margin-bottom:6px">Savings rate over time</p>',
+        unsafe_allow_html=True,
+    )
     st.plotly_chart(
         charts.savings_trend(sr_trend),
         use_container_width=True, config={"displayModeBar": False},
     )
-    ui.card_end()
 
 
 # ══════════════════════════════════════════════════════════════════════════════
