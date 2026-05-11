@@ -197,15 +197,18 @@ def expense_by_category(df: pd.DataFrame) -> pd.DataFrame:
 def savings_rate_by_month(df: pd.DataFrame) -> pd.DataFrame:
     """
     Return a DataFrame with Month and SavingsRate columns.
-    Uses explicit iteration — avoids groupby.apply() deprecation in pandas 3.x.
+    Month is formatted as "Jan 2026" for readable chart axis labels.
     """
+    import pandas as pd
     rows = []
     for month in sorted(df["Month"].unique()):
         g       = df[df["Month"] == month]
         income  = float(g[g["Type"] == "Income"]["Amount"].sum())
         expense = float(g[g["Type"] == "Expense"]["Amount"].abs().sum())
         rate    = (income - expense) / income * 100 if income > 0 else 0.0
-        rows.append({"Month": month, "SavingsRate": rate})
+        # Format "2026-01" → "Jan 2026" for chart readability
+        label = pd.to_datetime(month).strftime("%b %Y")
+        rows.append({"Month": label, "SavingsRate": rate})
     return pd.DataFrame(rows)
 
 

@@ -91,7 +91,7 @@ def _fmt(v: float, currency: str = "$") -> str:
 # ══════════════════════════════════════════════════════════════════════════════
 #  1. CASHFLOW WATERFALL
 # ══════════════════════════════════════════════════════════════════════════════
-_LABEL_THRESHOLD = 500   # only label bars with absolute value ≥ this
+_LABEL_THRESHOLD = 1000   # only label bars with absolute value ≥ this
 
 
 def waterfall_chart(

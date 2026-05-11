@@ -46,12 +46,12 @@ ui.inject_css()
 #  SIDEBAR
 # ══════════════════════════════════════════════════════════════════════════════
 with st.sidebar:
-    st.markdown("### Filters")
+    st.markdown('<p style="font-size:10px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:#64748B;margin:6px 0 10px">Filters</p>', unsafe_allow_html=True)
     ph_month  = st.empty()
     ph_cat    = st.empty()
 
-    st.markdown("---")
-    st.markdown("### API Key")
+    st.markdown('<div style="height:1px;background:#1E293B;margin:10px 0"></div>', unsafe_allow_html=True)
+    st.markdown('<p style="font-size:10px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:#64748B;margin:6px 0 4px">API Key</p>', unsafe_allow_html=True)
     st.caption("Enables AI column detection and categorisation in any language.")
     api_key = st.text_input(
         "Anthropic API Key", type="password",
@@ -59,12 +59,12 @@ with st.sidebar:
         help="Optional. Get one free at console.anthropic.com",
     )
 
-    st.markdown("---")
-    st.markdown("### AI Coach")
+    st.markdown('<div style="height:1px;background:#1E293B;margin:10px 0"></div>', unsafe_allow_html=True)
+    st.markdown('<p style="font-size:10px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:#64748B;margin:6px 0 10px">AI Coach</p>', unsafe_allow_html=True)
     run_ai = st.button("✦ Generate Insights", use_container_width=True)
 
-    st.markdown("---")
-    st.markdown("### Export")
+    st.markdown('<div style="height:1px;background:#1E293B;margin:10px 0"></div>', unsafe_allow_html=True)
+    st.markdown('<p style="font-size:10px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:#64748B;margin:6px 0 10px">Export</p>', unsafe_allow_html=True)
     ph_export = st.empty()
 
 
@@ -72,7 +72,7 @@ with st.sidebar:
 #  UPLOAD
 # ══════════════════════════════════════════════════════════════════════════════
 st.markdown(
-    '<div class="privacy">'
+    '<div class="mh-privacy">'
     "🔒 <b>Privacy:</b> Your file is processed only in this session — "
     "never stored or shared. For personal tracking only, not financial advice."
     "</div>",
@@ -116,8 +116,10 @@ with st.spinner("Reading and categorising your transactions…"):
 
 sym = meta.currency_symbol or "$"
 
-# ── Parse info bar ────────────────────────────────────────────────────────────
-ui.parse_info_bar(meta.columns_used, meta.detection_method, sym, meta.warnings)
+# Show user-facing warnings only (e.g. dropped rows) — not column mapping details
+if meta.warnings:
+    for w in meta.warnings:
+        st.warning(w)
 
 # ── Sidebar filters (filled now that df is loaded) ───────────────────────────
 sel_month = ph_month.selectbox("Month", ["All"] + sorted(df["Month"].unique()))
@@ -187,7 +189,7 @@ ui.verdict_banner(
 #  Removed: "Flexible spending" — finance jargon unfamiliar to everyday users.
 # ══════════════════════════════════════════════════════════════════════════════
 
-k1, k2, k3 = st.columns(3)
+k1, k2, k3, k4 = st.columns(4)
 
 # ── KPI 1: Money left over ────────────────────────────────────────────────────
 with k1:
@@ -237,6 +239,26 @@ with k3:
         delta_context = "",
     )
 
+# ── KPI 4: Top spending category — show amount as value, name as context ────
+with k4:
+    if top_cat and not exp_by_cat.empty:
+        top_amt = float(exp_by_cat.iloc[0]["Total"])
+        ui.kpi_card(
+            label         = "Biggest cost",
+            value         = ui.fmt_money(top_amt, sym),
+            value_color   = ui.COLOR["expense"],
+            delta_html    = f'<span class="neu">{top_cat}</span>',
+            delta_context = "",
+        )
+    else:
+        ui.kpi_card(
+            label         = "Transactions",
+            value         = str(period.txn_count),
+            value_color   = ui.COLOR["text_primary"],
+            delta_html    = '<span class="neu">This period</span>',
+            delta_context = "",
+        )
+
 
 # ══════════════════════════════════════════════════════════════════════════════
 #  §2  WATERFALL  +  FIXED vs FLEXIBLE  +  BUDGET CHECK
@@ -261,7 +283,7 @@ with col_right:
         f'  <div style="margin-bottom:14px">'
         f'    <div style="font-size:11px;font-weight:500;text-transform:uppercase;'
         f'letter-spacing:.06em;color:#9CA3AF;margin-bottom:4px">Fixed bills</div>'
-        f'    <div style="font-family:\'Plus Jakarta Sans\',sans-serif;font-size:24px;'
+        f'    <div style="font-family:\'Inter\',sans-serif;font-size:24px;'
         f'font-weight:500;color:#374151;font-variant-numeric:tabular-nums">'
         f'{ui.fmt_money(period.fixed_total, sym)}</div>'
         f'    <div style="font-size:12px;color:#9CA3AF;margin-top:2px">'
@@ -271,7 +293,7 @@ with col_right:
         f'  <div>'
         f'    <div style="font-size:11px;font-weight:500;text-transform:uppercase;'
         f'letter-spacing:.06em;color:#9CA3AF;margin-bottom:4px">Cuttable spend</div>'
-        f'    <div style="font-family:\'Plus Jakarta Sans\',sans-serif;font-size:24px;'
+        f'    <div style="font-family:\'Inter\',sans-serif;font-size:24px;'
         f'font-weight:500;color:#2563EB;font-variant-numeric:tabular-nums">'
         f'{ui.fmt_money(period.flex_total, sym)}</div>'
         f'    <div style="font-size:12px;color:#9CA3AF;margin-top:2px">'
@@ -281,12 +303,20 @@ with col_right:
         unsafe_allow_html=True,
     )
 
-    # Budget check bars
+    # Budget check bars — only show categories the user actually spent in
     ui.card_start("Budget check")
-    for cat, rec_pct in list(BUDGET_GUIDE.items())[:5]:
-        actual     = float(exp_by_cat[exp_by_cat["Category"] == cat]["Total"].sum())
+    shown = 0
+    for cat, rec_pct in BUDGET_GUIDE.items():
+        actual = float(exp_by_cat[exp_by_cat["Category"] == cat]["Total"].sum())
+        if actual == 0:
+            continue                          # skip irrelevant categories
         actual_pct = (actual / period.total_income * 100) if period.total_income > 0 else 0.0
         ui.budget_bar(cat, ui.fmt_money(actual, sym), actual_pct, rec_pct)
+        shown += 1
+        if shown == 5:
+            break                             # cap at 5 for layout balance
+    if shown == 0:
+        st.caption("No budget categories matched this period.")
     ui.card_end()
 
 
@@ -355,7 +385,7 @@ with col_sr:
 #  §5  INSIGHTS  ·  ACTIONS  ·  AI COACH  (tabbed)
 # ══════════════════════════════════════════════════════════════════════════════
 ui.section_header("Insights & actions")
-tab_story, tab_actions, tab_ai = st.tabs(["📖 What happened", "🚀 What to do", "✦ AI Coach"])
+tab_story, tab_actions, tab_ai = st.tabs(["What happened", "What to do", "AI insights"])
 
 # ── Tab 1: Story ──────────────────────────────────────────────────────────────
 with tab_story:
@@ -444,7 +474,7 @@ with tab_actions:
     ca, cb = st.columns(2)
     for i, (emoji, title, desc) in enumerate(actions[:4]):
         with (ca if i % 2 == 0 else cb):
-            ui.action_card(i + 1, emoji, title, desc)
+            ui.action_card(i + 1, "", title, desc)
 
 # ── Tab 3: AI Coach ───────────────────────────────────────────────────────────
 with tab_ai:

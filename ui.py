@@ -466,6 +466,7 @@ div[data-testid="stHorizontalBlock"] { gap: 14px; }
 [data-testid="stDataFrame"] { border-radius: 10px; overflow: hidden; }
 [data-testid="stDataFrame"] table { font-family: 'Inter', sans-serif !important; font-size: 13px !important; }
 [data-testid="stDataFrame"] th { background: #F8FAFC !important; color: #64748B !important; font-weight: 500 !important; font-size: 11px !important; text-transform: uppercase !important; letter-spacing: .05em !important; }
+[data-testid="stDataFrame"] tr:nth-child(even) td { background: #F8FAFC; }
 
 [data-testid="stTabs"] [data-baseweb="tab"] {
     font-family: 'Inter', sans-serif !important;
