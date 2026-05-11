@@ -20,11 +20,12 @@ import plotly.express as px
 import plotly.graph_objects as go
 
 from config import (
+    NAVY_COLOR,
+    ACCENT_COLOR,
     INCOME_COLOR,
     EXPENSE_COLOR,
-    ACCENT_COLOR,
-    NEUTRAL_COLOR,
     WARNING_COLOR,
+    NEUTRAL_COLOR,
     TREEMAP_SCALE,
     DAY_ORDER,
 )
@@ -33,10 +34,10 @@ from config import (
 # ══════════════════════════════════════════════════════════════════════════════
 #  SHARED HELPERS
 # ══════════════════════════════════════════════════════════════════════════════
-_FONT = "'Inter', 'Plus Jakarta Sans', sans-serif"
-_TEXT = "#374151"    # text_secondary — not too dark, not too muted
-_GRID = "#F3F4F6"    # barely-there gridlines
-_LINE = "#E5E7EB"    # axis lines
+_FONT = "'Inter', -apple-system, sans-serif"
+_TEXT = "#64748B"    # slate-600 — matches ui.py text_secondary
+_GRID = "#F1F5F9"    # slate-100 — barely visible gridlines
+_LINE = "#E2E8F0"    # slate-200 — axis lines
 
 
 def _layout(
@@ -48,7 +49,7 @@ def _layout(
     return dict(
         height        = height,
         paper_bgcolor = "#FFFFFF",
-        plot_bgcolor  = "#FFFFFF",
+        plot_bgcolor  = "#FFFFFF",   # charts sit on white card background
         font          = {"family": _FONT, "color": _TEXT, "size": 12},
         margin        = dict(t=t, b=b, l=l, r=r),
         **kwargs,
@@ -292,7 +293,7 @@ def savings_trend(sr_df: pd.DataFrame) -> go.Figure:
         textposition = "top center",
         textfont     = {"size": 10, "family": _FONT, "color": _TEXT},
         fill         = "tozeroy",
-        fillcolor    = "rgba(37,99,235,0.06)",
+        fillcolor    = "rgba(37,99,235,0.05)",
     ))
 
     fig.update_layout(

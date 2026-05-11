@@ -1,19 +1,14 @@
 """
 ui.py  —  Design system & component library
-Stage 1 of the Money Health dashboard redesign.
+Professional redesign: clean, minimal, business-ready.
 
-Single source of truth for every visual decision:
-  TOKENS      —  colours, spacing, typography (Python constants)
-  STYLESHEET  —  one CSS string, injected once at app startup
-  FORMATTERS  —  money, percentage, delta badge
-  COMPONENTS  —  every HTML block the app ever renders
-
-Rules enforced here:
-  - All CSS uses double-quoted attributes (safe inside Python strings)
-  - No inline styles scattered across app.py
-  - No font weights above 600 (prevents the "stretched" look on Windows)
-  - All display numbers go through fmt_money() or fmt_pct() — no raw floats
-  - Component functions accept plain Python values, return nothing (call st.markdown)
+Design decisions:
+  FONT      Inter only — one typeface, two weights (400/600), strict hierarchy
+  COLOUR    5 semantic tokens (navy, blue, emerald, rose, amber) + slate neutrals
+  CARDS     1px solid border, no shadow — modern flat approach (Notion/Linear/Stripe)
+  SECTIONS  Blue 4px dot + small uppercase label — clear but not heavy
+  NUMBERS   font-variant-numeric: tabular-nums everywhere — professional alignment
+  SPACING   8px base unit — consistent rhythm throughout
 """
 
 from __future__ import annotations
@@ -21,129 +16,99 @@ import streamlit as st
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-#  DESIGN TOKENS  (change here → changes everywhere)
+#  DESIGN TOKENS
 # ══════════════════════════════════════════════════════════════════════════════
-
-# ── Semantic colours ──────────────────────────────────────────────────────────
 COLOR = {
-    # Meaning-bearing (used only for their semantic role)
-    "income":          "#16A34A",   # green  — money coming in
-    "income_tint":     "#F0FDF4",   # light green background
-    "income_border":   "#BBF7D0",
+    # Semantic — meaning-bearing, never used decoratively
+    "navy":        "#0F172A",   # sidebar, verdict bg, primary text
+    "accent":      "#2563EB",   # blue — highlights, section dots, net cashflow
+    "income":      "#059669",   # emerald — positive, on track, income
+    "expense":     "#E11D48",   # rose — expenses, over budget
+    "warning":     "#D97706",   # amber — near limit, caution
 
-    "expense":         "#DC2626",   # red    — money going out
-    "expense_tint":    "#FEF2F2",
-    "expense_border":  "#FECACA",
-
-    "warning":         "#D97706",   # amber  — near budget limit
-    "warning_tint":    "#FFFBEB",
-    "warning_border":  "#FDE68A",
-
-    "accent":          "#2563EB",   # blue   — primary interactive
-    "accent_tint":     "#EEF2FF",
-    "accent_border":   "#C7D2FE",
-
-    # Structural
-    "page_bg":         "#F8F7F4",   # warm off-white canvas
-    "card_bg":         "#FFFFFF",
-    "surface":         "#F9FAFB",   # subtle inside-card surface
-    "border":          "#E5E7EB",   # default 0.5px border
-    "border_light":    "#F3F4F6",   # dividers inside cards
-
-    "verdict_bg":      "#0F172A",   # dark slate for hero banner
-    "verdict_score_ok":  "#34D399", # emerald  — excellent / healthy
-    "verdict_score_warn":"#FBBF24", # amber    — needs attention
-    "verdict_score_bad": "#F87171", # coral    — at risk
+    # Structural — layout only
+    "page_bg":     "#F1F5F9",   # slate-100 — cool professional background
+    "card_bg":     "#FFFFFF",
+    "surface":     "#F8FAFC",   # slate-50 — slightly off-white for nested surfaces
+    "border":      "#E2E8F0",   # slate-200 — card borders
+    "border_sub":  "#F1F5F9",   # intra-card dividers
 
     # Text
-    "text_primary":    "#111827",
-    "text_secondary":  "#6B7280",
-    "text_muted":      "#9CA3AF",
-    "text_on_dark":    "#F9FAFB",
+    "text_primary":   "#0F172A",   # slate-900
+    "text_secondary": "#475569",   # slate-600
+    "text_muted":     "#94A3B8",   # slate-400
+    "text_on_dark":   "#F1F5F9",   # for dark backgrounds
 }
-
-# ── Spacing (px) ─────────────────────────────────────────────────────────────
-SP = {
-    "xs":  "4px",
-    "sm":  "8px",
-    "md":  "12px",
-    "lg":  "16px",
-    "xl":  "24px",
-    "2xl": "32px",
-    "3xl": "48px",
-}
-
-# ── Border radius ─────────────────────────────────────────────────────────────
-RADIUS = {
-    "sm":   "8px",
-    "md":   "12px",
-    "lg":   "16px",
-    "pill": "99px",
-}
-
-# ── Typography ────────────────────────────────────────────────────────────────
-# Plus Jakarta Sans: headings, KPI values, scores — friendly, not stretched
-# Inter: body, labels, descriptions — most readable screen font
-FONT_HEADING = "'Plus Jakarta Sans', sans-serif"
-FONT_BODY    = "'Inter', sans-serif"
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-#  STYLESHEET  (injected once via inject_css())
+#  STYLESHEET
+#  One CSS block injected once. Every component uses these classes.
+#  No inline styles outside this file — all visual decisions live here.
 # ══════════════════════════════════════════════════════════════════════════════
-# Written entirely with double-quoted attributes so it never conflicts with
-# Python string delimiters, regardless of where it appears.
 STYLESHEET = """
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600&family=Inter:wght@400;500&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap');
 
 html, body, [class*="css"] {
-    font-family: 'Inter', sans-serif;
+    font-family: 'Inter', -apple-system, sans-serif;
     -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
 }
 
 [data-testid="stAppViewContainer"] {
-    background: #F8F7F4;
+    background: #F1F5F9;
 }
 
 .block-container {
-    padding: 1.4rem 2rem 4rem;
-    max-width: 1280px;
+    padding: 1.5rem 2.2rem 4rem;
+    max-width: 1320px;
 }
 
+/* ── Sidebar ── */
 [data-testid="stSidebar"] {
     background: #0F172A !important;
     border-right: none !important;
 }
 [data-testid="stSidebar"] * {
-    color: #E2E8F0 !important;
+    color: #CBD5E1 !important;
 }
 [data-testid="stSidebar"] label {
-    color: #64748B !important;
+    color: #475569 !important;
     font-size: 10px !important;
     font-family: 'Inter', sans-serif !important;
     text-transform: uppercase;
     letter-spacing: .07em;
+    font-weight: 500 !important;
 }
 [data-testid="stSidebar"] .stButton > button {
     background: #2563EB !important;
     border: none !important;
     color: #fff !important;
-    border-radius: 10px !important;
+    border-radius: 8px !important;
     font-weight: 500 !important;
+    font-size: 13px !important;
     font-family: 'Inter', sans-serif !important;
-    letter-spacing: .01em;
+}
+[data-testid="stSidebar"] .stButton > button:hover {
+    background: #1D4ED8 !important;
 }
 [data-testid="stSidebar"] .stDownloadButton > button {
-    background: #1E293B !important;
-    border: 1px solid #334155 !important;
-    color: #CBD5E1 !important;
-    border-radius: 10px !important;
+    background: transparent !important;
+    border: 1px solid #1E293B !important;
+    color: #64748B !important;
+    border-radius: 8px !important;
+    font-size: 13px !important;
+}
+[data-testid="stSidebar"] .stDownloadButton > button:hover {
+    border-color: #334155 !important;
+    color: #94A3B8 !important;
 }
 
+/* ── Verdict banner ── */
 .mh-verdict {
     background: #0F172A;
-    border-radius: 18px;
+    border-radius: 12px;
     padding: 28px 36px;
     margin-bottom: 20px;
     display: flex;
@@ -152,8 +117,8 @@ html, body, [class*="css"] {
     flex-wrap: wrap;
 }
 .mh-verdict-score {
-    font-family: 'Plus Jakarta Sans', sans-serif;
-    font-size: 80px;
+    font-family: 'Inter', sans-serif;
+    font-size: 72px;
     font-weight: 600;
     line-height: 1;
     letter-spacing: -2px;
@@ -165,154 +130,114 @@ html, body, [class*="css"] {
     font-weight: 500;
     letter-spacing: .1em;
     text-transform: uppercase;
-    color: #64748B;
-    margin-bottom: 6px;
+    color: #334155;
+    margin-bottom: 7px;
 }
 .mh-verdict-headline {
-    font-family: 'Plus Jakarta Sans', sans-serif;
-    font-size: 20px;
+    font-size: 18px;
     font-weight: 600;
     color: #F1F5F9;
     margin-bottom: 6px;
-    line-height: 1.3;
+    line-height: 1.35;
 }
 .mh-verdict-sub {
     font-size: 13px;
-    color: #94A3B8;
+    color: #475569;
     line-height: 1.5;
 }
+.mh-verdict-sub b {
+    color: #64748B;
+    font-weight: 500;
+}
 
+/* ── KPI cards ── */
 .mh-kpi {
     background: #FFFFFF;
-    border: 0.5px solid #E5E7EB;
-    border-radius: 16px;
-    padding: 18px 20px 14px;
+    border: 1px solid #E2E8F0;
+    border-radius: 10px;
+    padding: 18px 20px 16px;
     margin-bottom: 14px;
 }
 .mh-kpi-label {
-    font-size: 10px;
+    font-size: 11px;
     font-weight: 500;
     text-transform: uppercase;
     letter-spacing: .07em;
-    color: #9CA3AF;
-    margin-bottom: 6px;
+    color: #94A3B8;
+    margin-bottom: 8px;
 }
 .mh-kpi-value {
-    font-family: 'Plus Jakarta Sans', sans-serif;
     font-size: 28px;
-    font-weight: 500;
-    line-height: 1.1;
-    letter-spacing: -0.3px;
+    font-weight: 600;
+    line-height: 1;
+    letter-spacing: -0.5px;
     font-variant-numeric: tabular-nums;
 }
 .mh-kpi-delta {
     font-size: 12px;
-    margin-top: 6px;
-    color: #9CA3AF;
+    margin-top: 7px;
+    color: #94A3B8;
 }
-.mh-kpi-delta .pos { color: #16A34A; font-weight: 500; }
-.mh-kpi-delta .neg { color: #DC2626; font-weight: 500; }
-.mh-kpi-delta .neu { color: #9CA3AF; }
+.mh-kpi-delta .pos { color: #059669; font-weight: 500; }
+.mh-kpi-delta .neg { color: #E11D48; font-weight: 500; }
+.mh-kpi-delta .neu { color: #94A3B8; }
 
+/* ── Section header ── */
 .mh-section {
-    font-size: 12px;
-    font-weight: 500;
-    letter-spacing: .06em;
-    text-transform: uppercase;
-    color: #6B7280;
-    margin: 32px 0 16px;
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: 8px;
+    margin: 28px 0 14px;
 }
-.mh-section::after {
-    content: "";
-    flex: 1;
-    height: 0.5px;
-    background: #E5E7EB;
+.mh-section-dot {
+    width: 4px;
+    height: 16px;
+    background: #2563EB;
+    border-radius: 2px;
+    flex-shrink: 0;
+}
+.mh-section-text {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: .07em;
+    text-transform: uppercase;
+    color: #64748B;
 }
 
+/* ── Card ── */
 .mh-card {
     background: #FFFFFF;
-    border: 0.5px solid #E5E7EB;
-    border-radius: 16px;
-    padding: 20px 22px;
-    margin-bottom: 14px;
+    border: 1px solid #E2E8F0;
+    border-radius: 10px;
+    padding: 18px 20px;
+    margin-bottom: 12px;
 }
 .mh-card-title {
-    font-family: 'Plus Jakarta Sans', sans-serif;
-    font-size: 14px;
+    font-size: 11px;
     font-weight: 600;
-    color: #111827;
+    text-transform: uppercase;
+    letter-spacing: .06em;
+    color: #64748B;
     margin-bottom: 14px;
 }
 
-.mh-spend-item {
-    background: #FFFFFF;
-    border: 0.5px solid #E5E7EB;
-    border-radius: 12px;
-    padding: 14px 16px;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 8px;
-}
-.mh-spend-name {
-    font-size: 14px;
-    font-weight: 500;
-    color: #374151;
-}
-.mh-spend-rank {
-    font-size: 11.5px;
-    color: #9CA3AF;
-    margin-top: 2px;
-}
-.mh-spend-amount {
-    font-family: 'Plus Jakarta Sans', sans-serif;
-    font-size: 18px;
-    font-weight: 500;
-    font-variant-numeric: tabular-nums;
-}
-
-.mh-budget-label-row {
-    display: flex;
-    justify-content: space-between;
-    font-size: 12.5px;
-    color: #374151;
-    font-weight: 500;
-    margin-bottom: 4px;
-}
-.mh-budget-status {
-    font-size: 11.5px;
-    font-weight: 500;
-}
-.mh-budget-track {
-    background: #F3F4F6;
-    border-radius: 99px;
-    height: 5px;
-    overflow: hidden;
-    margin-bottom: 13px;
-}
-.mh-budget-fill {
-    height: 100%;
-    border-radius: 99px;
-}
-
+/* ── Insight card ── */
 .mh-insight {
-    background: #F9FAFB;
-    border-left: 3px solid #2563EB;
-    border-radius: 0 10px 10px 0;
-    padding: 12px 16px;
-    margin-bottom: 9px;
+    border-left: 2px solid #2563EB;
+    border-radius: 0 6px 6px 0;
+    padding: 10px 14px;
+    margin-bottom: 8px;
     font-size: 13.5px;
     color: #374151;
     line-height: 1.65;
+    background: #F8FAFC;
 }
 
+/* ── Action card ── */
 .mh-action {
     background: #FFFFFF;
-    border: 0.5px solid #E5E7EB;
-    border-radius: 12px;
+    border: 1px solid #E2E8F0;
+    border-radius: 8px;
     padding: 12px 16px;
     margin-bottom: 8px;
     display: flex;
@@ -320,45 +245,46 @@ html, body, [class*="css"] {
     align-items: flex-start;
 }
 .mh-action-num {
-    min-width: 22px;
-    height: 22px;
-    background: #EEF2FF;
-    color: #4F46E5;
-    border-radius: 50%;
+    min-width: 20px;
+    height: 20px;
+    background: #EFF6FF;
+    color: #2563EB;
+    border-radius: 4px;
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 11px;
+    font-size: 10px;
     font-weight: 600;
     flex-shrink: 0;
     margin-top: 1px;
+    font-family: 'Inter', sans-serif;
 }
 .mh-action-title {
-    font-family: 'Plus Jakarta Sans', sans-serif;
-    font-size: 13.5px;
+    font-size: 13px;
     font-weight: 600;
-    color: #111827;
+    color: #0F172A;
     margin-bottom: 3px;
 }
 .mh-action-desc {
     font-size: 12.5px;
-    color: #6B7280;
-    line-height: 1.5;
+    color: #64748B;
+    line-height: 1.55;
 }
 
+/* ── Top transaction card ── */
 .mh-txn {
     background: #FFFFFF;
-    border: 0.5px solid #E5E7EB;
-    border-radius: 12px;
-    padding: 13px 16px;
+    border: 1px solid #E2E8F0;
+    border-radius: 8px;
+    padding: 12px 16px;
     margin-bottom: 8px;
 }
 .mh-txn-amount {
-    font-family: 'Plus Jakarta Sans', sans-serif;
-    font-size: 22px;
-    font-weight: 500;
+    font-size: 20px;
+    font-weight: 600;
     font-variant-numeric: tabular-nums;
-    color: #DC2626;
+    color: #E11D48;
+    letter-spacing: -0.3px;
 }
 .mh-txn-desc {
     font-size: 13px;
@@ -368,85 +294,104 @@ html, body, [class*="css"] {
 }
 .mh-txn-meta {
     font-size: 11px;
-    color: #9CA3AF;
+    color: #94A3B8;
 }
 
+/* ── Budget bars ── */
+.mh-budget-label-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 12.5px;
+    color: #374151;
+    font-weight: 500;
+    margin-bottom: 5px;
+}
+.mh-budget-status {
+    font-size: 11px;
+    font-weight: 500;
+}
+.mh-budget-track {
+    background: #F1F5F9;
+    border-radius: 3px;
+    height: 4px;
+    overflow: hidden;
+    margin-bottom: 13px;
+}
+.mh-budget-fill {
+    height: 100%;
+    border-radius: 3px;
+}
+
+/* ── Subscription list ── */
 .mh-sub-row {
     display: flex;
     justify-content: space-between;
     align-items: center;
     padding: 10px 0;
-    border-bottom: 0.5px solid #F3F4F6;
+    border-bottom: 1px solid #F1F5F9;
 }
 .mh-sub-row:last-child { border-bottom: none; }
 .mh-sub-name {
-    font-size: 13.5px;
-    font-weight: 500;
+    font-size: 13px;
+    font-weight: 400;
     color: #374151;
 }
 .mh-sub-amount {
-    font-family: 'Plus Jakarta Sans', sans-serif;
-    font-size: 15px;
-    font-weight: 500;
+    font-size: 14px;
+    font-weight: 600;
     font-variant-numeric: tabular-nums;
-    color: #DC2626;
+    color: #E11D48;
 }
 
+/* ── AI panel ── */
 .mh-ai-panel {
-    background: #F5F3FF;
-    border: 0.5px solid #DDD6FE;
-    border-radius: 14px;
-    padding: 20px 22px;
+    background: #F8FAFC;
+    border: 1px solid #E2E8F0;
+    border-radius: 10px;
+    padding: 18px 20px;
 }
 .mh-ai-tag {
-    background: #EDE9FE;
-    color: #5B21B6;
+    background: #EFF6FF;
+    color: #2563EB;
     font-size: 10px;
     font-weight: 600;
     letter-spacing: .06em;
     text-transform: uppercase;
     padding: 3px 10px;
-    border-radius: 99px;
+    border-radius: 4px;
     display: inline-block;
     margin-bottom: 12px;
 }
 .mh-ai-body {
-    font-size: 14px;
-    color: #1F2937;
+    font-size: 13.5px;
+    color: #374151;
     line-height: 1.75;
     white-space: pre-line;
 }
 
-.mh-privacy {
-    background: #EFF6FF;
-    border: 0.5px solid #BFDBFE;
-    border-radius: 10px;
-    padding: 10px 16px;
-    margin-bottom: 20px;
-    font-size: 12px;
-    color: #1D4ED8;
-    line-height: 1.5;
-}
-
+/* ── Parse info bar ── */
 .mh-parse-info {
-    background: #F9FAFB;
-    border: 0.5px solid #E5E7EB;
-    border-radius: 10px;
-    padding: 10px 16px;
+    background: #F8FAFC;
+    border: 1px solid #E2E8F0;
+    border-radius: 8px;
+    padding: 9px 14px;
     font-size: 12px;
-    color: #6B7280;
-    line-height: 1.65;
+    color: #64748B;
+    line-height: 1.6;
     margin-bottom: 18px;
 }
 .mh-badge-ai {
     display: inline-block;
-    background: #EDE9FE;
-    color: #5B21B6;
+    background: #EFF6FF;
+    color: #2563EB;
     font-size: 10px;
     font-weight: 600;
-    padding: 2px 9px;
-    border-radius: 99px;
+    padding: 2px 8px;
+    border-radius: 4px;
     margin-left: 6px;
+    text-transform: uppercase;
+    letter-spacing: .04em;
 }
 .mh-badge-kw {
     display: inline-block;
@@ -454,96 +399,111 @@ html, body, [class*="css"] {
     color: #854D0E;
     font-size: 10px;
     font-weight: 600;
-    padding: 2px 9px;
-    border-radius: 99px;
+    padding: 2px 8px;
+    border-radius: 4px;
     margin-left: 6px;
+    text-transform: uppercase;
+    letter-spacing: .04em;
 }
 
+/* ── Privacy notice ── */
+.mh-privacy {
+    background: #F8FAFC;
+    border: 1px solid #E2E8F0;
+    border-radius: 8px;
+    padding: 9px 14px;
+    margin-bottom: 18px;
+    font-size: 12px;
+    color: #64748B;
+    line-height: 1.5;
+}
+
+/* ── Onboarding tiles ── */
 .mh-ob-card {
     background: #FFFFFF;
-    border: 0.5px solid #E5E7EB;
-    border-radius: 18px;
-    padding: 30px 22px;
+    border: 1px solid #E2E8F0;
+    border-radius: 10px;
+    padding: 28px 22px;
     text-align: center;
 }
 .mh-ob-icon {
-    font-size: 32px;
+    font-size: 28px;
     margin-bottom: 12px;
     line-height: 1;
 }
 .mh-ob-title {
-    font-family: 'Plus Jakarta Sans', sans-serif;
-    font-size: 15px;
+    font-size: 14px;
     font-weight: 600;
-    color: #111827;
+    color: #0F172A;
     margin-bottom: 7px;
 }
 .mh-ob-desc {
-    font-size: 13px;
-    color: #9CA3AF;
+    font-size: 12.5px;
+    color: #64748B;
     line-height: 1.6;
 }
 
+/* ── Disclaimer ── */
 .mh-disclaimer {
-    background: #F3F4F6;
-    border-radius: 10px;
-    padding: 12px 18px;
+    background: #F8FAFC;
+    border-radius: 8px;
+    padding: 11px 16px;
     font-size: 11px;
-    color: #9CA3AF;
+    color: #94A3B8;
     text-align: center;
-    margin-top: 28px;
+    margin-top: 24px;
     line-height: 1.6;
 }
 
+/* ── Streamlit overrides ── */
 [data-testid="stFileUploaderDropzone"] {
     background: #FFFFFF !important;
-    border: 1.5px dashed #D1D5DB !important;
-    border-radius: 12px !important;
+    border: 1.5px dashed #CBD5E1 !important;
+    border-radius: 10px !important;
 }
 div[data-testid="stHorizontalBlock"] { gap: 14px; }
+
+[data-testid="stDataFrame"] { border-radius: 10px; overflow: hidden; }
+[data-testid="stDataFrame"] table { font-family: 'Inter', sans-serif !important; font-size: 13px !important; }
+[data-testid="stDataFrame"] th { background: #F8FAFC !important; color: #64748B !important; font-weight: 500 !important; font-size: 11px !important; text-transform: uppercase !important; letter-spacing: .05em !important; }
+
+[data-testid="stTabs"] [data-baseweb="tab"] {
+    font-family: 'Inter', sans-serif !important;
+    font-size: 13px !important;
+    font-weight: 500 !important;
+}
 </style>
 """
 
 
 def inject_css() -> None:
-    """Call once at the top of app.py — injects the full design system."""
+    """Inject the design system stylesheet. Call once at app startup."""
     st.markdown(STYLESHEET, unsafe_allow_html=True)
 
 
 # ══════════════════════════════════════════════════════════════════════════════
 #  FORMATTERS
-#  All numbers that reach the screen must pass through one of these.
 # ══════════════════════════════════════════════════════════════════════════════
-
 def fmt_money(value: float, sym: str = "$", signed: bool = False) -> str:
     """
-    Format a monetary amount for display.
-    Drops cents for values >= 1,000 to keep KPI cards compact.
-
-    Examples:
-        fmt_money(16896.94)            → "$16,897"
-        fmt_money(238.35)              → "$238.35"
-        fmt_money(1700, signed=True)   → "+$1,700"
-        fmt_money(-500, signed=True)   → "-$500.00"
+    Format money for display. Drops cents for values >= $1,000.
+    fmt_money(16896.94)           -> "$16,897"
+    fmt_money(238.35)             -> "$238.35"
+    fmt_money(1700, signed=True)  -> "+$1,700"
     """
     abs_v = abs(value)
     body  = f"{abs_v:,.0f}" if abs_v >= 1_000 else f"{abs_v:,.2f}"
     if signed:
-        prefix = "+" if value >= 0 else "-"
-        return f"{prefix}{sym}{body}"
+        return f"+{sym}{body}" if value >= 0 else f"-{sym}{body}"
     return f"{sym}{body}"
 
 
 def fmt_pct(value: float, decimals: int = 1) -> str:
-    """Format a percentage. fmt_pct(43.5) → '43.5%'"""
     return f"{value:.{decimals}f}%"
 
 
 def delta_badge(current: float, previous: float, invert: bool = False) -> str:
-    """
-    Return an HTML <span> showing percentage change vs previous period.
-    invert=True: a decrease is shown as green (e.g. expenses going down is good).
-    """
+    """HTML span showing % change. invert=True means a decrease is good."""
     if previous == 0:
         return '<span class="neu">—</span>'
     pct   = (current - previous) / abs(previous) * 100
@@ -555,43 +515,33 @@ def delta_badge(current: float, previous: float, invert: bool = False) -> str:
 
 
 def _score_color(score: int) -> str:
-    """Map health score to its display colour."""
-    if score >= 80: return COLOR["verdict_score_ok"]
-    if score >= 65: return COLOR["verdict_score_ok"]
-    if score >= 45: return COLOR["verdict_score_warn"]
-    return COLOR["verdict_score_bad"]
-
-
-def _spend_color(actual_pct: float, rec_pct: int) -> str:
-    """Traffic-light colour for a budget category."""
-    if actual_pct > rec_pct:            return COLOR["expense"]
-    if actual_pct > rec_pct * 0.85:    return COLOR["warning"]
-    return COLOR["income"]
-
-
-def _spend_status_text(actual_pct: float, rec_pct: int) -> str:
-    if actual_pct > rec_pct:            return "Over budget"
-    if actual_pct > rec_pct * 0.85:    return "Almost there"
-    return "On track"
+    """Verdict banner score number colour."""
+    if score >= 80: return "#34D399"   # emerald-400 — great on dark bg
+    if score >= 65: return "#60A5FA"   # blue-400
+    if score >= 45: return "#FBBF24"   # amber-400
+    return "#F87171"                   # red-400
 
 
 # ══════════════════════════════════════════════════════════════════════════════
 #  COMPONENTS
-#  Each function renders exactly one UI block using st.markdown.
-#  Arguments are plain Python values — no HTML leaks into app.py.
 # ══════════════════════════════════════════════════════════════════════════════
 
 def section_header(label: str) -> None:
-    """Uppercase section divider with a horizontal rule."""
-    st.markdown(f'<div class="mh-section">{label}</div>', unsafe_allow_html=True)
+    """Blue dot + small uppercase label — clear hierarchy without visual noise."""
+    st.markdown(
+        f'<div class="mh-section">'
+        f'<div class="mh-section-dot"></div>'
+        f'<div class="mh-section-text">{label}</div>'
+        f'</div>',
+        unsafe_allow_html=True,
+    )
 
 
-# ── Verdict banner ────────────────────────────────────────────────────────────
 def verdict_banner(
-    score:       int,
-    score_label: str,
-    headline:    str,
-    sub_html:    str,          # pre-formatted "Earned $X · Spent $Y · Saved $Z"
+    score:        int,
+    score_label:  str,
+    headline:     str,
+    sub_html:     str,
 ) -> None:
     color = _score_color(score)
     st.markdown(
@@ -607,26 +557,24 @@ def verdict_banner(
     )
 
 
-# ── KPI card ──────────────────────────────────────────────────────────────────
 def kpi_card(
     label:         str,
-    value:         str,          # pre-formatted by fmt_money / fmt_pct
+    value:         str,
     value_color:   str,
-    delta_html:    str,          # output of delta_badge()
-    delta_context: str = "",     # e.g. "vs last month"
+    delta_html:    str,
+    delta_context: str = "",
 ) -> None:
-    context = f' <span class="neu">{delta_context}</span>' if delta_context else ""
+    ctx = f' <span class="neu">{delta_context}</span>' if delta_context else ""
     st.markdown(
         f'<div class="mh-kpi">'
         f'  <div class="mh-kpi-label">{label}</div>'
         f'  <div class="mh-kpi-value" style="color:{value_color}">{value}</div>'
-        f'  <div class="mh-kpi-delta">{delta_html}{context}</div>'
+        f'  <div class="mh-kpi-delta">{delta_html}{ctx}</div>'
         f'</div>',
         unsafe_allow_html=True,
     )
 
 
-# ── Card wrappers ─────────────────────────────────────────────────────────────
 def card_start(title: str = "") -> None:
     title_html = f'<div class="mh-card-title">{title}</div>' if title else ""
     st.markdown(f'<div class="mh-card">{title_html}', unsafe_allow_html=True)
@@ -636,43 +584,48 @@ def card_end() -> None:
     st.markdown('</div>', unsafe_allow_html=True)
 
 
-# ── Top spending items ────────────────────────────────────────────────────────
 def spend_item(
     name:       str,
-    rank_label: str,      # e.g. "Biggest cost", "2nd largest"
+    rank_label: str,
     amount:     float,
     sym:        str = "$",
     color:      str = "",
 ) -> None:
     c = color or COLOR["expense"]
     st.markdown(
-        f'<div class="mh-spend-item">'
+        f'<div style="display:flex;justify-content:space-between;align-items:center;'
+        f'padding:11px 0;border-bottom:1px solid #F1F5F9">'
         f'  <div>'
-        f'    <div class="mh-spend-name">{name}</div>'
-        f'    <div class="mh-spend-rank">{rank_label}</div>'
+        f'    <div style="font-size:13.5px;font-weight:400;color:#374151">{name}</div>'
+        f'    <div style="font-size:11px;color:#94A3B8;margin-top:1px">{rank_label}</div>'
         f'  </div>'
-        f'  <div class="mh-spend-amount" style="color:{c}">{fmt_money(amount, sym)}</div>'
+        f'  <div style="font-size:17px;font-weight:600;font-variant-numeric:tabular-nums;'
+        f'color:{c};letter-spacing:-0.3px">{fmt_money(amount, sym)}</div>'
         f'</div>',
         unsafe_allow_html=True,
     )
 
 
-# ── Budget bar ────────────────────────────────────────────────────────────────
 def budget_bar(
     category:   str,
-    amount_str: str,    # pre-formatted display amount e.g. "$1,200"
-    actual_pct: float,  # pre-computed percentage of income
-    rec_pct:    int,    # recommended % from BUDGET_GUIDE
+    amount_str: str,
+    actual_pct: float,
+    rec_pct:    int,
 ) -> None:
-    bar_w  = min(actual_pct / rec_pct * 100, 108) if rec_pct else 0.0
-    color  = _spend_color(actual_pct, rec_pct)
-    status = _spend_status_text(actual_pct, rec_pct)
-
+    bar_w = min(actual_pct / rec_pct * 100, 108) if rec_pct else 0.0
+    if actual_pct > rec_pct:
+        color, status, status_color = "#E11D48", "Over budget", "#E11D48"
+    elif actual_pct > rec_pct * 0.85:
+        color, status, status_color = "#D97706", "Near limit", "#D97706"
+    else:
+        color, status, status_color = "#059669", "On track", "#059669"
     st.markdown(
-        f'<div>'
+        f'<div style="margin-bottom:13px">'
         f'  <div class="mh-budget-label-row">'
-        f'    <span>{category} <span style="color:#9CA3AF;font-weight:400;font-size:11px">{amount_str}</span></span>'
-        f'    <span class="mh-budget-status" style="color:{color}">{status}</span>'
+        f'    <span>{category} '
+        f'<span style="color:#94A3B8;font-weight:400;font-size:11.5px">{amount_str}</span>'
+        f'    </span>'
+        f'    <span class="mh-budget-status" style="color:{status_color}">{status}</span>'
         f'  </div>'
         f'  <div class="mh-budget-track">'
         f'    <div class="mh-budget-fill" style="width:{bar_w:.1f}%;background:{color}"></div>'
@@ -682,22 +635,16 @@ def budget_bar(
     )
 
 
-# ── Insight card ──────────────────────────────────────────────────────────────
 def insight_card(html_body: str) -> None:
-    """Blue-left-border card. html_body may contain <b> tags."""
-    st.markdown(
-        f'<div class="mh-insight">{html_body}</div>',
-        unsafe_allow_html=True,
-    )
+    st.markdown(f'<div class="mh-insight">{html_body}</div>', unsafe_allow_html=True)
 
 
-# ── Action card ───────────────────────────────────────────────────────────────
 def action_card(num: int, emoji: str, title: str, description: str) -> None:
     st.markdown(
         f'<div class="mh-action">'
         f'  <div class="mh-action-num">{num}</div>'
         f'  <div>'
-        f'    <div class="mh-action-title">{emoji} {title}</div>'
+        f'    <div class="mh-action-title">{title}</div>'
         f'    <div class="mh-action-desc">{description}</div>'
         f'  </div>'
         f'</div>',
@@ -705,11 +652,10 @@ def action_card(num: int, emoji: str, title: str, description: str) -> None:
     )
 
 
-# ── Top transaction card ──────────────────────────────────────────────────────
 def transaction_card(
-    amount:      str,   # pre-formatted e.g. "$1,200"
+    amount:      str,
     description: str,
-    date:        str,   # pre-formatted e.g. "14 Jan 2026"
+    date:        str,
     category:    str,
 ) -> None:
     st.markdown(
@@ -722,24 +668,22 @@ def transaction_card(
     )
 
 
-# ── Subscription list ─────────────────────────────────────────────────────────
-def subscription_list(
-    rows_html:  str,   # pre-built HTML rows from app.py
-    total_str:  str,   # pre-formatted total e.g. "$89.00"
-) -> None:
+def subscription_list(rows_html: str, total_str: str) -> None:
     total_row = (
-        f'<div style="display:flex;justify-content:space-between;'
-        f'padding:10px 0 2px;font-size:12.5px;color:{COLOR["text_muted"]};font-weight:500">'
+        f'<div style="display:flex;justify-content:space-between;padding:10px 0 2px;'
+        f'font-size:12.5px;color:#94A3B8;font-weight:500;border-top:1px solid #F1F5F9;'
+        f'margin-top:2px">'
         f'<span>Total</span>'
-        f'<span style="font-family:\'Plus Jakarta Sans\',sans-serif;color:{COLOR["expense"]};'
-        f'font-size:15px;font-weight:500;font-variant-numeric:tabular-nums">'
-        f'{total_str}</span>'
+        f'<span style="font-size:15px;font-weight:600;font-variant-numeric:tabular-nums;'
+        f'color:#E11D48">{total_str}</span>'
         f'</div>'
     )
     st.markdown(
         f'<div class="mh-card" style="padding:14px 18px">{rows_html}{total_row}</div>',
         unsafe_allow_html=True,
     )
+
+
 def ai_panel(text: str) -> None:
     st.markdown(
         f'<div class="mh-ai-panel">'
@@ -752,14 +696,14 @@ def ai_panel(text: str) -> None:
 
 def ai_empty_state() -> None:
     st.markdown(
-        f'<div style="padding:28px;text-align:center;color:{COLOR["text_muted"]};font-size:14px">'
-        f'Add your Anthropic API key in the sidebar and click <b>Generate insights</b>.'
+        f'<div style="padding:28px;text-align:center;color:#94A3B8;font-size:13.5px">'
+        f'Enter your Anthropic API key in the sidebar and click '
+        f'<strong>Generate insights</strong> for personalised coaching.'
         f'</div>',
         unsafe_allow_html=True,
     )
 
 
-# ── Parse info bar ────────────────────────────────────────────────────────────
 def parse_info_bar(
     col_map:  dict[str, str],
     method:   str,
@@ -767,43 +711,41 @@ def parse_info_bar(
     warnings: list[str],
 ) -> None:
     badge = (
-        f'<span class="mh-badge-ai">AI detected</span>'
+        f'<span class="mh-badge-ai">AI</span>'
         if method == "ai" else
-        f'<span class="mh-badge-kw">keyword rules</span>'
+        f'<span class="mh-badge-kw">keyword</span>'
     )
     html = (
         f'Columns detected {badge}: '
-        f'Date &rarr; <code>{col_map.get("date", "?")}</code> &nbsp;&middot;&nbsp; '
-        f'Description &rarr; <code>{col_map.get("description", "?")}</code> &nbsp;&middot;&nbsp; '
-        f'Amount &rarr; <code>{col_map.get("amount", "?")}</code>'
+        f'Date &rarr; <code>{col_map.get("date","?")}</code> &nbsp;&middot;&nbsp; '
+        f'Description &rarr; <code>{col_map.get("description","?")}</code> &nbsp;&middot;&nbsp; '
+        f'Amount &rarr; <code>{col_map.get("amount","?")}</code>'
     )
     if currency and currency != "$":
-        html += f' &nbsp;&middot;&nbsp; Currency: <b>{currency}</b>'
+        html += f' &nbsp;&middot;&nbsp; Currency: <strong>{currency}</strong>'
     if warnings:
         html += "<br>" + " &nbsp;|&nbsp; ".join(warnings)
     st.markdown(f'<div class="mh-parse-info">{html}</div>', unsafe_allow_html=True)
 
 
-# ── Privacy notice ────────────────────────────────────────────────────────────
 def privacy_notice() -> None:
     st.markdown(
         '<div class="mh-privacy">'
-        "Your file is processed only in this browser session — "
-        "never stored or shared. For personal tracking only, not financial advice."
+        "Your file is processed only in this session — never stored or shared. "
+        "For personal tracking only, not financial advice."
         '</div>',
         unsafe_allow_html=True,
     )
 
 
-# ── Onboarding (pre-upload) ───────────────────────────────────────────────────
 def onboarding_tiles() -> None:
     tiles = [
         ("🌍", "Works with any bank",
-         "Japanese, Arabic, German, Korean — any language, any column format, any currency."),
-        ("🧠", "Smart detection",
-         "Reads your CSV header and automatically finds the date, description, and amount."),
+         "Any language, any column format, any currency. CSV from any bank worldwide."),
+        ("🧠", "Smart column detection",
+         "Automatically identifies date, description, and amount columns."),
         ("⚡", "Plain-English results",
-         "See where your money went in seconds. No finance background needed."),
+         "Understand your finances in seconds — no background needed."),
     ]
     cols = st.columns(3)
     for col, (icon, title, desc) in zip(cols, tiles):
@@ -818,13 +760,11 @@ def onboarding_tiles() -> None:
             )
 
 
-# ── Footer disclaimer ─────────────────────────────────────────────────────────
 def disclaimer() -> None:
     st.markdown(
         '<div class="mh-disclaimer">'
         "Money Health is for personal education and spending awareness only. "
-        "It does not constitute financial, tax, investment, or credit advice. "
-        "Consult a licensed financial adviser for professional guidance."
+        "It does not constitute financial, tax, investment, or credit advice."
         '</div>',
         unsafe_allow_html=True,
     )

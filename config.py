@@ -81,26 +81,32 @@ SCORE_HEALTHY    = 65
 SCORE_ATTENTION  = 45
 
 # ── Chart palette (consistent across all charts) ──────────────────────────────
-# ── Chart colour tokens — single source of truth ─────────────────────────────
-# These must match the semantic colours in ui.py COLOR exactly.
-# Charts use config constants; cards use ui.COLOR — both reference the same values.
-INCOME_COLOR  = "#16A34A"   # green  — income, healthy, on track
-EXPENSE_COLOR = "#EF4444"   # red    — expenses, concern
-ACCENT_COLOR  = "#2563EB"   # blue   — net cashflow, primary highlight
-NEUTRAL_COLOR = "#D1D5DB"   # grey   — inactive bars, background elements
-WARNING_COLOR = "#D97706"   # amber  — near limit, caution
+# ══════════════════════════════════════════════════════════════════════════════
+#  COLOUR TOKENS  —  5 semantic colours, used consistently in ui.py + charts.py
+#  Navy · Blue · Emerald · Rose · Amber
+# ══════════════════════════════════════════════════════════════════════════════
+NAVY_COLOR    = "#0F172A"   # slate-900  — sidebar, verdict bg, primary text
+ACCENT_COLOR  = "#2563EB"   # blue-600   — net cashflow, highlights, section dots
+INCOME_COLOR  = "#059669"   # emerald-600 — income, positive, on track
+EXPENSE_COLOR = "#E11D48"   # rose-600   — expenses, over budget
+WARNING_COLOR = "#D97706"   # amber-600  — near limit, caution
 
-# Treemap: single-hue blue scale (lightest → darkest)
-# Matches ACCENT_COLOR family — one cohesive system across all charts
+# Supporting neutrals (not semantic — structural only)
+NEUTRAL_COLOR = "#CBD5E1"   # slate-300  — inactive chart bars
+PAGE_BG       = "#F1F5F9"   # slate-100  — page background
+CARD_BG       = "#FFFFFF"
+BORDER_COLOR  = "#E2E8F0"   # slate-200
+
+# Treemap: navy-to-blue single-hue scale
 TREEMAP_SCALE = [
     "#EFF6FF", "#BFDBFE", "#93C5FD",
-    "#60A5FA", "#2563EB", "#1D4ED8",
+    "#60A5FA", "#2563EB", "#1E40AF",
 ]
 
-# Multi-series palette (for categoricals — kept minimal)
+# Multi-series chart palette (rarely used — only for grouped bars)
 CHART_COLORS = [
-    "#2563EB", "#16A34A", "#EF4444", "#D97706",
-    "#7C3AED", "#0891B2", "#DB2777", "#65A30D",
+    "#2563EB", "#059669", "#E11D48",
+    "#D97706", "#7C3AED", "#0891B2",
 ]
 
 # ── Encoding candidates (ordered by global prevalence) ───────────────────────
