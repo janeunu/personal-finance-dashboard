@@ -80,9 +80,9 @@ st.markdown(
 )
 
 uploaded = st.file_uploader(
-    "Upload your bank statement — any language, any bank",
-    type=["csv"],
-    help="CSV with at least a date column, description column, and amount column.",
+    "Upload your bank statement — CSV or Excel, any bank",
+    type=["csv", "xlsx", "xls"],
+    help="CSV or Excel with at least a date column, description column, and amount (or debit/credit) column.",
 )
 
 if uploaded is None:
@@ -97,16 +97,16 @@ key = (api_key or "").strip() or os.environ.get("ANTHROPIC_API_KEY", "")
 
 
 @st.cache_data(show_spinner=False)
-def load_data(raw: bytes, api_key_used: str):
+def load_data(raw: bytes, api_key_used: str, fname: str = ""):
     """Cache parse + categorise together — re-runs only when file or key changes."""
-    df, meta = parse_statement(raw, api_key_used or None)
+    df, meta = parse_statement(raw, api_key_used or None, filename=fname)
     df       = add_categories(df, api_key_used or None)
     return df, meta
 
 
 with st.spinner("Reading and categorising your transactions…"):
     try:
-        df, meta = load_data(uploaded.read(), key)
+        df, meta = load_data(uploaded.read(), key, fname=uploaded.name)
     except ValueError as exc:
         st.error(str(exc))
         st.stop()
@@ -239,9 +239,19 @@ with k3:
         delta_context = "",
     )
 
-# ── KPI 4: Top spending category — show amount as value, name as context ────
+# ── KPI 4: Needs Review count (if any), otherwise biggest cost ──────────────
 with k4:
-    if top_cat and not exp_by_cat.empty:
+    needs_review_count = int(fdf["NeedsReview"].sum()) if "NeedsReview" in fdf.columns else 0
+    if needs_review_count > 0:
+        nr_color = ui.COLOR["warning"] if needs_review_count < 10 else ui.COLOR["expense"]
+        ui.kpi_card(
+            label         = "Needs review",
+            value         = str(needs_review_count),
+            value_color   = nr_color,
+            delta_html    = '<span class="neu">Transactions with low confidence</span>',
+            delta_context = "",
+        )
+    elif top_cat and not exp_by_cat.empty:
         top_amt = float(exp_by_cat.iloc[0]["Total"])
         ui.kpi_card(
             label         = "Biggest cost",
@@ -568,12 +578,50 @@ with tab_ai:
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-#  §6  TRANSACTION TABLE
+#  §6  NEEDS REVIEW  +  TRANSACTION TABLE
 # ══════════════════════════════════════════════════════════════════════════════
 ui.section_header("Transaction explorer")
 
+# ── Needs Review panel ────────────────────────────────────────────────────────
+needs_review_df = fdf[fdf.get("NeedsReview", False)] if "NeedsReview" in fdf.columns else pd.DataFrame()
+if not needs_review_df.empty:
+    nr_count = len(needs_review_df)
+    st.markdown(
+        f'<div style="background:#FFFBEB;border:1px solid #FDE68A;border-radius:10px;'
+        f'padding:14px 18px;margin-bottom:14px">'
+        f'<div style="font-size:11px;font-weight:600;text-transform:uppercase;'
+        f'letter-spacing:.06em;color:#92400E;margin-bottom:8px">'
+        f'⚠ {nr_count} transaction{"s" if nr_count != 1 else ""} need review</div>'
+        f'<div style="font-size:13px;color:#78350F;line-height:1.55">'
+        f'These transactions could not be confidently categorised — '
+        f'descriptions were too vague, missing, or matched no known pattern. '
+        f'Check the Category column and correct any that look wrong.</div>'
+        f'</div>',
+        unsafe_allow_html=True,
+    )
+    review_display = (
+        needs_review_df[["Date", "Description", "Amount", "Category", "Confidence"]]
+        .copy()
+        .assign(Date=needs_review_df["Date"].dt.strftime("%d %b %Y"))
+        .sort_values("Amount")
+        .reset_index(drop=True)
+    )
+    st.dataframe(
+        review_display,
+        use_container_width = True,
+        height              = min(200, 40 + nr_count * 35),
+        column_config       = {
+            "Amount":     st.column_config.NumberColumn("Amount", format=f"{sym}%.2f"),
+            "Confidence": st.column_config.TextColumn("Confidence"),
+        },
+    )
+
+# ── Full transaction table ────────────────────────────────────────────────────
+cols_to_show = ["Date", "Description", "Amount", "Category", "Type", "Confidence"]
+cols_to_show = [c for c in cols_to_show if c in fdf.columns]
+
 display_df = (
-    fdf[["Date", "Description", "Amount", "Category", "Type", "Month"]]
+    fdf[cols_to_show]
     .copy()
     .assign(Date=fdf["Date"].dt.strftime("%d %b %Y"))
     .sort_values("Date", ascending=False)
@@ -585,9 +633,10 @@ st.dataframe(
     use_container_width = True,
     height              = 420,
     column_config       = {
-        "Amount":   st.column_config.NumberColumn("Amount", format=f"{sym}%.2f"),
-        "Category": st.column_config.TextColumn("Category"),
-        "Type":     st.column_config.TextColumn("Type"),
+        "Amount":     st.column_config.NumberColumn("Amount", format=f"{sym}%.2f"),
+        "Category":   st.column_config.TextColumn("Category"),
+        "Type":       st.column_config.TextColumn("Type"),
+        "Confidence": st.column_config.TextColumn("Confidence"),
     },
 )
 
