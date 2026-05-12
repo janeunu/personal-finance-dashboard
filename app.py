@@ -99,8 +99,12 @@ key = (api_key or "").strip() or os.environ.get("ANTHROPIC_API_KEY", "")
 @st.cache_data(show_spinner=False)
 def load_data(raw: bytes, api_key_used: str, fname: str = ""):
     """Cache parse + categorise together — re-runs only when file or key changes."""
-    df, meta = parse_statement(raw, api_key_used or None, filename=fname)
-    df       = add_categories(df, api_key_used or None)
+    try:
+        df, meta = parse_statement(raw, api_key_used or None, filename=fname)
+    except TypeError:
+        # Fallback: older parser.py without filename parameter
+        df, meta = parse_statement(raw, api_key_used or None)
+    df = add_categories(df, api_key_used or None)
     return df, meta
 
 
