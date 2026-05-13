@@ -89,73 +89,95 @@ if uploaded is None:
 # ══════════════════════════════════════════════════════════════════════════════
 key = (api_key or "").strip() or os.environ.get("ANTHROPIC_API_KEY", "")
 
+# ══════════════════════════════════════════════════════════════════════════════
+#  SESSION STATE — single source of truth
+#
+#  master_df lives in st.session_state[file_key].
+#  When a user confirms a category correction, master_df is mutated and
+#  st.rerun() is called — every downstream computation automatically refreshes.
+#
+#  file_key is derived from filename + file size, so the dataset resets
+#  automatically when a different file is uploaded.
+# ══════════════════════════════════════════════════════════════════════════════
+_file_key  = f"master_{uploaded.name}_{uploaded.size}"
+_meta_key  = f"meta_{_file_key}"
+_custom_key = "custom_categories"    # user-added categories, persists across files
 
-@st.cache_data(show_spinner=False)
-def load_data(raw: bytes, api_key_used: str, fname: str = ""):
-    """Cache parse + categorise together — re-runs only when file or key changes."""
-    try:
-        df, meta = parse_statement(raw, api_key_used or None, filename=fname)
-    except TypeError:
-        # Fallback: older parser.py without filename parameter
-        df, meta = parse_statement(raw, api_key_used or None)
-    df = add_categories(df, api_key_used or None)
-    df = flag_transactions(df)
-    return df, meta
+# Initialise custom categories list once per session
+if _custom_key not in st.session_state:
+    st.session_state[_custom_key] = []
 
+# Parse, categorise, and flag — only runs once per file
+if _file_key not in st.session_state:
+    with st.spinner("Reading and categorising your transactions…"):
+        try:
+            _raw = uploaded.read()
+            _df, _meta = parse_statement(_raw, key or None, filename=uploaded.name)
+            _df = add_categories(_df, key or None)
+            _df = flag_transactions(_df)
+            # Add ReviewStatus column: "Review" for flagged, "Auto" for clean
+            _df["ReviewStatus"] = _df["Flag"].apply(
+                lambda f: "Review" if f else "Auto"
+            )
+            st.session_state[_file_key] = _df
+            st.session_state[_meta_key] = _meta
+        except ValueError as exc:
+            st.error(str(exc))
+            st.stop()
+        except Exception as exc:
+            st.error(f"Unexpected error: {exc}")
+            st.stop()
 
-with st.spinner("Reading and categorising your transactions…"):
-    try:
-        df, meta = load_data(uploaded.read(), key, fname=uploaded.name)
-    except ValueError as exc:
-        st.error(str(exc))
-        st.stop()
-    except Exception as exc:
-        st.error(f"Unexpected error: {exc}")
-        st.stop()
+# All downstream code reads from master_df — never from the original parse output
+master_df = st.session_state[_file_key]
+meta      = st.session_state[_meta_key]
+sym       = meta.currency_symbol or "$"
 
-sym = meta.currency_symbol or "$"
-
-# Show user-facing warnings only (e.g. dropped rows) — not column mapping details
 if meta.warnings:
     for w in meta.warnings:
         st.warning(w)
 
-# ── Top filter bar (inline — no sidebar needed) ──────────────────────────────
+# All available category options (built-in + any user-added custom categories)
+_all_categories = sorted(
+    list(set(ALL_CATEGORIES + st.session_state[_custom_key]))
+)
+
+# ── Top filter bar ────────────────────────────────────────────────────────────
 ph_export.download_button(
     "⬇ Export CSV",
-    data      = df.to_csv(index=False).encode("utf-8"),
+    data      = master_df.assign(
+                    Date=master_df["Date"].dt.strftime("%Y-%m-%d")
+                ).to_csv(index=False).encode("utf-8"),
     file_name = "money_health_transactions.csv",
     mime      = "text/csv",
-    help      = "Export all transactions. For corrected categories, use the download button at the bottom of the page.",
+    help      = "Download all transactions with current category corrections applied.",
     use_container_width = True,
 )
 f1, f2, f3, _ = st.columns([2, 2, 2, 4])
 with f1:
-    sel_month = st.selectbox("Month", ["All months"] + sorted(df["Month"].unique()),
-                             label_visibility="visible")
+    sel_month = st.selectbox("Month",
+        ["All months"] + sorted(master_df["Month"].unique()),
+        label_visibility="visible")
 with f2:
-    sel_cat = st.selectbox("Category", ["All categories"] + sorted(df["Category"].unique()),
-                           label_visibility="visible")
+    sel_cat = st.selectbox("Category",
+        ["All categories"] + sorted(master_df["Category"].unique()),
+        label_visibility="visible")
 with f3:
-    sel_type = st.selectbox("Type", ["All types", "Income", "Expense", "Transfer"],
-                            label_visibility="visible")
+    sel_type = st.selectbox("Type",
+        ["All types", "Income", "Expense", "Transfer"],
+        label_visibility="visible")
 
-# Normalise filter values
 sel_month = None if sel_month == "All months" else sel_month
 sel_cat   = None if sel_cat == "All categories" else sel_cat
 sel_type  = None if sel_type == "All types" else sel_type
 
-
 # ══════════════════════════════════════════════════════════════════════════════
-#  FILTER
+#  FILTER  — fdf is a filtered view of master_df (never mutated)
 # ══════════════════════════════════════════════════════════════════════════════
-fdf = df.copy()
-if sel_month:
-    fdf = fdf[fdf["Month"] == sel_month]
-if sel_cat:
-    fdf = fdf[fdf["Category"] == sel_cat]
-if sel_type:
-    fdf = fdf[fdf["Type"] == sel_type]
+fdf = master_df.copy()
+if sel_month: fdf = fdf[fdf["Month"] == sel_month]
+if sel_cat:   fdf = fdf[fdf["Category"] == sel_cat]
+if sel_type:  fdf = fdf[fdf["Type"] == sel_type]
 
 exp_df = fdf[fdf["Type"] == "Expense"]
 
@@ -257,7 +279,12 @@ with k3:
 
 # ── KPI 4: Needs Review count (if any), otherwise biggest cost ──────────────
 with k4:
-    needs_review_count = int(fdf["NeedsReview"].sum()) if "NeedsReview" in fdf.columns else 0
+    # Use master_df (not filtered fdf) so review count is always the full pending total
+    needs_review_count = int(
+        (master_df["ReviewStatus"] == "Review").sum()
+        if "ReviewStatus" in master_df.columns
+        else master_df.get("NeedsReview", pd.Series(False)).sum()
+    )
     if needs_review_count > 0:
         nr_color = ui.COLOR["warning"] if needs_review_count < 10 else ui.COLOR["expense"]
         ui.kpi_card(
@@ -699,157 +726,182 @@ with _col_bd_tips:
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-#  §6  TRANSACTIONS NEEDING REVIEW  +  FULL TRANSACTION TABLE
+#  §6  TRANSACTION REVIEW WORKFLOW
+#
+#  Architecture: master_df (session_state) is the single source of truth.
+#  Confirming a review mutates master_df → st.rerun() → all views refresh.
+#
+#  ReviewStatus values:
+#    "Auto"     — categorised with high confidence, no action needed
+#    "Review"   — flagged by a rule, needs user confirmation
+#    "Reviewed" — user has confirmed the category
 # ══════════════════════════════════════════════════════════════════════════════
 ui.section_header(
     "Transactions that need checking",
-    "These transactions had unclear descriptions, unknown merchants, or unusual amounts. "
-    "Use the Category dropdown to correct any that look wrong.",
+    "Review each flagged transaction, assign the correct category, then click Confirm. "
+    "Confirmed transactions move to the Transaction Explorer automatically.",
 )
 
-# ── Session state: persist category corrections across Streamlit reruns ───────
-# Key is derived from filename + size so corrections reset when a new file is uploaded.
-_cache_key = f"cat_corrections_{uploaded.name}_{uploaded.size}"
-if _cache_key not in st.session_state:
-    st.session_state[_cache_key] = {}   # {row_position: corrected_category}
+# ── Build the flagged view from master_df (not fdf — filtering is irrelevant here) ──
+_pending = master_df[master_df["ReviewStatus"] == "Review"].copy()
 
-# ── Build the review dataframe ────────────────────────────────────────────────
-if "Flag" in fdf.columns:
-    _flagged = (
-        fdf[fdf["Flag"] != ""]
-        .sort_values("Amount")
-        .reset_index(drop=True)
-    )
-else:
-    _flagged = pd.DataFrame()
+# ── Summary bar ───────────────────────────────────────────────────────────────
+_reviewed_count = int((master_df["ReviewStatus"] == "Reviewed").sum())
+_pending_count  = len(_pending)
+_total_flagged  = _pending_count + _reviewed_count
 
-if _flagged.empty:
+if _total_flagged > 0:
+    _pct_done = int(_reviewed_count / _total_flagged * 100)
     st.markdown(
-        '<div style="padding:18px;text-align:center;color:#98A2B3;'
-        'font-size:13.5px;background:#F9FAFB;border:1px solid #EAECF0;border-radius:10px">'
-        '✅ All transactions were categorised with high confidence — nothing needs review.'
+        f'<div style="background:#F9FAFB;border:1px solid #EAECF0;border-radius:8px;'
+        f'padding:10px 16px;margin-bottom:12px;display:flex;align-items:center;gap:16px">'
+        f'<div style="flex:1;background:#EAECF0;border-radius:99px;height:6px;overflow:hidden">'
+        f'<div style="width:{_pct_done}%;height:100%;background:#12B76A;border-radius:99px"></div>'
+        f'</div>'
+        f'<div style="font-size:13px;color:#374151;white-space:nowrap">'
+        f'<b>{_reviewed_count}</b> of <b>{_total_flagged}</b> reviewed'
+        f'{"  ✅ All done!" if _pending_count == 0 else f"  — {_pending_count} remaining"}</div>'
+        f'</div>',
+        unsafe_allow_html=True,
+    )
+
+if _pending.empty:
+    st.markdown(
+        '<div style="padding:18px;text-align:center;color:#98A2B3;font-size:13.5px;'
+        'background:#F9FAFB;border:1px solid #EAECF0;border-radius:10px">'
+        '✅ All flagged transactions have been reviewed. They appear in the Transaction Explorer below.'
         '</div>',
         unsafe_allow_html=True,
     )
 else:
-    # Columns to display in the editable table
-    _review_cols = [c for c in
-        ["Date", "Description", "Amount", "Category", "Flag", "Confidence"]
-        if c in _flagged.columns]
-
-    _review_df = _flagged[_review_cols].copy()
-    _review_df["Date"] = _review_df["Date"].dt.strftime("%d %b %Y")
-
-    # Apply any corrections saved from previous interactions in this session
-    for pos, corrected_cat in st.session_state[_cache_key].items():
-        if pos < len(_review_df):
-            _review_df.at[pos, "Category"] = corrected_cat
-
-    # ── Editable table with category dropdown ─────────────────────────────────
-    st.markdown(
-        f'<div style="font-size:12.5px;color:#6941C6;font-weight:500;margin-bottom:8px">'
-        f'📝 {len(_flagged)} transaction{"s" if len(_flagged) != 1 else ""} flagged '
-        f'— click any Category cell to correct it</div>',
-        unsafe_allow_html=True,
-    )
-
-    _edited = st.data_editor(
-        _review_df,
-        column_config={
-            "Date": st.column_config.TextColumn(
-                "Date",
-                disabled=True,
-            ),
-            "Description": st.column_config.TextColumn(
-                "Description",
-                disabled=True,
-                width="large",
-            ),
-            "Amount": st.column_config.NumberColumn(
-                "Amount",
-                format=f"{sym}%.2f",
-                disabled=True,
-            ),
-            "Category": st.column_config.SelectboxColumn(
-                "Category ✏",          # ✏ icon signals editability
-                options=sorted(ALL_CATEGORIES),
-                required=True,
-                width="medium",
-            ),
-            "Flag": st.column_config.TextColumn(
-                "Why flagged",
-                disabled=True,
-                width="medium",
-            ),
-            "Confidence": st.column_config.TextColumn(
-                "Confidence",
-                disabled=True,
-                width="small",
-            ),
-        },
-        use_container_width = True,
-        hide_index          = True,
-        num_rows            = "fixed",          # no adding/deleting rows
-        height              = min(420, 55 + len(_flagged) * 36),
-        key                 = f"review_editor_{_cache_key}",
-    )
-
-    # ── Detect changes and persist to session state ───────────────────────────
-    if _edited is not None and "Category" in _edited.columns:
-        _orig_cats = _review_df["Category"].tolist()
-        _new_cats  = _edited["Category"].tolist()
-
-        for pos, (orig, new) in enumerate(zip(_orig_cats, _new_cats)):
-            if orig != new and new in ALL_CATEGORIES:
-                st.session_state[_cache_key][pos] = new
-
-    # ── Show summary of corrections ───────────────────────────────────────────
-    _n_corrections = len(st.session_state[_cache_key])
-    if _n_corrections > 0:
-        _corrected_items = ", ".join(
-            f'row {p+1} → {c}'
-            for p, c in list(st.session_state[_cache_key].items())[:3]
+    # ── Column header ──────────────────────────────────────────────────────────
+    _h = st.columns([1.1, 2.8, 1, 2, 1.8, 0.7])
+    for col, lbl in zip(_h, ["Date","Description","Amount","Category","Why flagged",""]): 
+        col.markdown(
+            f'<div style="font-size:10px;font-weight:500;text-transform:uppercase;'
+            f'letter-spacing:.06em;color:#98A2B3;padding-bottom:4px;'
+            f'border-bottom:1px solid #EAECF0">{lbl}</div>',
+            unsafe_allow_html=True,
         )
-        if len(st.session_state[_cache_key]) > 3:
-            _corrected_items += f" + {len(st.session_state[_cache_key]) - 3} more"
-        st.success(
-            f"✓ {_n_corrections} correction{'s' if _n_corrections != 1 else ''} saved "
-            f"for this session. ({_corrected_items})"
-        )
-        if st.button("↩ Reset all corrections", key="reset_corrections"):
-            st.session_state[_cache_key] = {}
-            st.rerun()
 
-# ── Build corrected full dataframe for analysis and export ───────────────────
-# Apply session-state corrections to the full filtered dataframe.
-fdf_corrected = fdf.copy()
-if "Flag" in fdf.columns and st.session_state.get(_cache_key):
-    # Map corrections: the flagged df was sorted by Amount + reset_index,
-    # so we need to recover the original fdf indices.
-    if not _flagged.empty:
-        _flagged_with_orig_idx = (
-            fdf[fdf["Flag"] != ""]
-            .sort_values("Amount")
-        )
-        for pos, new_cat in st.session_state[_cache_key].items():
-            if pos < len(_flagged_with_orig_idx):
-                orig_idx = _flagged_with_orig_idx.index[pos]
-                fdf_corrected.at[orig_idx, "Category"] = new_cat
+    # ── One row per pending transaction ───────────────────────────────────────
+    for _idx, _row in _pending.iterrows():
+        _c1, _c2, _c3, _c4, _c5, _c6 = st.columns([1.1, 2.8, 1, 2, 1.8, 0.7])
 
-# ── Full transaction table (read-only, shows corrected categories) ────────────
+        # Date + description + amount (read-only)
+        with _c1:
+            st.markdown(
+                f'<div style="font-size:12px;color:#98A2B3;padding-top:8px">'
+                f'{_row["Date"].strftime("%d %b %Y")}</div>',
+                unsafe_allow_html=True,
+            )
+        with _c2:
+            st.markdown(
+                f'<div style="font-size:13px;font-weight:500;color:#374151;padding-top:8px;'
+                f'overflow:hidden;white-space:nowrap;text-overflow:ellipsis" title="{_row["Description"]}">'
+                f'{str(_row["Description"])[:45]}</div>',
+                unsafe_allow_html=True,
+            )
+        with _c3:
+            _amt = float(_row["Amount"])
+            _color = ui.COLOR["expense"] if _amt < 0 else ui.COLOR["income"]
+            st.markdown(
+                f'<div style="font-size:13px;font-weight:600;color:{_color};'
+                f'font-variant-numeric:tabular-nums;padding-top:8px">'
+                f'{ui.fmt_money(_amt, sym)}</div>',
+                unsafe_allow_html=True,
+            )
+
+        # Category selectbox (editable)
+        with _c4:
+            _current_cat = str(_row.get("Category", "Other Expense"))
+            _default_idx = (
+                _all_categories.index(_current_cat)
+                if _current_cat in _all_categories else 0
+            )
+            _selected_cat = st.selectbox(
+                label           = "",
+                options         = _all_categories,
+                index           = _default_idx,
+                key             = f"sel_{_idx}",
+                label_visibility= "collapsed",
+            )
+
+        # Flag reason
+        with _c5:
+            _flag = str(_row.get("Flag", ""))
+            st.markdown(
+                f'<div style="font-size:11px;color:#F79009;padding-top:8px">'
+                f'{_flag[:40]}</div>',
+                unsafe_allow_html=True,
+            )
+
+        # Confirm button
+        with _c6:
+            if st.button("✓", key=f"confirm_{_idx}", help="Confirm this category"):
+                # Update master_df — the single source of truth
+                _final_cat = st.session_state.get(f"sel_{_idx}", _selected_cat)
+                st.session_state[_file_key].at[_idx, "Category"]     = _final_cat
+                st.session_state[_file_key].at[_idx, "ReviewStatus"]  = "Reviewed"
+                st.session_state[_file_key].at[_idx, "NeedsReview"]   = False
+                st.session_state[_file_key].at[_idx, "Flag"]          = ""
+                st.toast(f"✓ {str(_row['Description'])[:30]} → {_final_cat}", icon="✅")
+                st.rerun()   # ← triggers full refresh: charts, KPIs, explorer all update
+
+        st.markdown(
+            '<div style="height:0.5px;background:#F2F4F7;margin:2px 0"></div>',
+            unsafe_allow_html=True,
+        )
+
+    # ── Custom category input ──────────────────────────────────────────────────
+    with st.expander("➕ Need a category that isn't in the list?"):
+        _new_cat_col, _add_col = st.columns([3, 1])
+        with _new_cat_col:
+            _new_cat_name = st.text_input(
+                "New category name",
+                placeholder="e.g. Pet care, Hobbies, Side business…",
+                key="new_category_input",
+            )
+        with _add_col:
+            st.markdown("<br>", unsafe_allow_html=True)
+            if st.button("Add category", key="add_category_btn"):
+                _nc = _new_cat_name.strip()
+                if _nc and _nc not in st.session_state[_custom_key]:
+                    st.session_state[_custom_key].append(_nc)
+                    st.success(f"✓ '{_nc}' added. It now appears in all category dropdowns.")
+                    st.rerun()
+                elif _nc in st.session_state[_custom_key]:
+                    st.info(f"'{_nc}' is already in your list.")
+                else:
+                    st.warning("Please enter a category name.")
+
+        if st.session_state[_custom_key]:
+            st.markdown(
+                f'<div style="font-size:12px;color:#98A2B3;margin-top:6px">'
+                f'Custom categories: {", ".join(st.session_state[_custom_key])}</div>',
+                unsafe_allow_html=True,
+            )
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+#  §7  TRANSACTION EXPLORER
+#
+#  Shows all transactions from master_df (filtered).
+#  Confirmed reviews appear here — they no longer show in the flagged table.
+# ══════════════════════════════════════════════════════════════════════════════
 ui.section_header(
     "Transaction explorer",
-    "Browse all your transactions. Categories show any corrections you made above.",
+    "All your transactions — including ones you have already reviewed and confirmed.",
 )
 
 _show_cols = [c for c in
-    ["Date", "Description", "Amount", "Category", "Type", "Confidence", "Flag"]
-    if c in fdf_corrected.columns]
+    ["Date", "Description", "Amount", "Category", "Type", "ReviewStatus", "Confidence"]
+    if c in fdf.columns]
 
 _full_df = (
-    fdf_corrected[_show_cols]
+    fdf[_show_cols]
     .copy()
-    .assign(Date=fdf_corrected["Date"].dt.strftime("%d %b %Y"))
+    .assign(Date=fdf["Date"].dt.strftime("%d %b %Y"))
     .sort_values("Date", ascending=False)
     .reset_index(drop=True)
 )
@@ -859,23 +911,24 @@ st.dataframe(
     use_container_width = True,
     height              = 420,
     column_config       = {
-        "Amount":     st.column_config.NumberColumn("Amount", format=f"{sym}%.2f"),
-        "Category":   st.column_config.TextColumn("Category"),
-        "Type":       st.column_config.TextColumn("Type"),
-        "Confidence": st.column_config.TextColumn("Confidence"),
-        "Flag":       st.column_config.TextColumn("Flagged reason"),
+        "Amount":       st.column_config.NumberColumn("Amount", format=f"{sym}%.2f"),
+        "Category":     st.column_config.TextColumn("Category"),
+        "Type":         st.column_config.TextColumn("Type"),
+        "ReviewStatus": st.column_config.TextColumn("Status"),
+        "Confidence":   st.column_config.TextColumn("Confidence"),
     },
 )
 
-# ── Export with corrected categories ─────────────────────────────────────────
-_export_data = fdf_corrected.copy()
-_export_data["Date"] = _export_data["Date"].dt.strftime("%Y-%m-%d")
 st.download_button(
-    label     = "⬇ Download corrected CSV",
-    data      = _export_data.to_csv(index=False).encode("utf-8"),
-    file_name = "money_health_corrected.csv",
+    label     = "⬇ Download transactions CSV",
+    data      = (
+        fdf.assign(Date=fdf["Date"].dt.strftime("%Y-%m-%d"))
+        .to_csv(index=False)
+        .encode("utf-8")
+    ),
+    file_name = "money_health_transactions.csv",
     mime      = "text/csv",
-    help      = "Includes any category corrections you made in the review table above.",
+    help      = "Downloads all transactions with reviewed categories applied.",
 )
 
 # ── Footer ────────────────────────────────────────────────────────────────────
