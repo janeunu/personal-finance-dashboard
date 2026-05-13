@@ -188,12 +188,12 @@ exp_df = fdf[fdf["Type"] == "Expense"]
 exp_by_cat   = m.expense_by_category(fdf)           # computed first — needed for headline
 top_cat      = exp_by_cat.iloc[0]["Category"] if not exp_by_cat.empty else None
 period       = m.compute_period_metrics(fdf, top_category=top_cat)
-sr_trend     = m.savings_rate_by_month(df)           # always full dataset for trend
+sr_trend     = m.savings_rate_by_month(master_df)    # always full dataset for trend
 dow_spend    = m.spend_by_dow(fdf)
 top_txns     = m.top_expenses(fdf, n=3)
 subs         = m.subscription_breakdown(fdf)
-delta        = m.previous_period(df, sel_month) if sel_month else m.PeriodDelta()
-monthly_df   = monthly_income_vs_expense(df)
+delta        = m.previous_period(master_df, sel_month) if sel_month else m.PeriodDelta()
+monthly_df   = monthly_income_vs_expense(master_df)
 
 
 # ══════════════════════════════════════════════════════════════════════════════
