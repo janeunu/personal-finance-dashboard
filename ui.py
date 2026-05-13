@@ -19,25 +19,25 @@ import streamlit as st
 #  DESIGN TOKENS
 # ══════════════════════════════════════════════════════════════════════════════
 COLOR = {
-    # Semantic — meaning-bearing, never used decoratively
-    "navy":        "#0F172A",   # sidebar, verdict bg, primary text
-    "accent":      "#2563EB",   # blue — highlights, section dots, net cashflow
-    "income":      "#059669",   # emerald — positive, on track, income
-    "expense":     "#E11D48",   # rose — expenses, over budget
-    "warning":     "#D97706",   # amber — near limit, caution
+    # Semantic — meaning-bearing
+    "navy":        "#1A2332",   # softer charcoal — header, verdict bg
+    "accent":      "#6941C6",   # soft purple — distinctive, calm, non-corporate
+    "income":      "#12B76A",   # softer green — income, positive, on track
+    "expense":     "#F04438",   # soft rose — expenses, over budget
+    "warning":     "#F79009",   # warm amber — near limit, caution
 
-    # Structural — layout only
-    "page_bg":     "#F1F5F9",   # slate-100 — cool professional background
+    # Structural
+    "page_bg":     "#F7F8FA",   # near-white, easy on the eyes
     "card_bg":     "#FFFFFF",
-    "surface":     "#F8FAFC",   # slate-50 — slightly off-white for nested surfaces
-    "border":      "#E2E8F0",   # slate-200 — card borders
-    "border_sub":  "#F1F5F9",   # intra-card dividers
+    "surface":     "#F9FAFB",   # slightly off-white nested surfaces
+    "border":      "#EAECF0",   # very subtle card borders
+    "border_sub":  "#F2F4F7",   # intra-card dividers
 
     # Text
-    "text_primary":   "#0F172A",   # slate-900
-    "text_secondary": "#475569",   # slate-600
-    "text_muted":     "#94A3B8",   # slate-400
-    "text_on_dark":   "#F1F5F9",   # for dark backgrounds
+    "text_primary":   "#101828",   # near-black
+    "text_secondary": "#475467",   # medium grey
+    "text_muted":     "#98A2B3",   # muted grey
+    "text_on_dark":   "#F9FAFB",   # for dark backgrounds
 }
 
 
@@ -57,7 +57,7 @@ html, body, [class*="css"] {
 }
 
 [data-testid="stAppViewContainer"] {
-    background: #F1F5F9;
+    background: #F7F8FA;
 }
 
 .block-container {
@@ -67,7 +67,7 @@ html, body, [class*="css"] {
 
 /* ── Sidebar ── */
 [data-testid="stSidebar"] {
-    background: #0F172A !important;
+    background: #1A2332 !important;
     border-right: none !important;
 }
 [data-testid="stSidebar"] * {
@@ -82,7 +82,7 @@ html, body, [class*="css"] {
     font-weight: 500 !important;
 }
 [data-testid="stSidebar"] .stButton > button {
-    background: #2563EB !important;
+    background: #6941C6 !important;
     border: none !important;
     color: #fff !important;
     border-radius: 8px !important;
@@ -153,9 +153,9 @@ html, body, [class*="css"] {
 /* ── KPI cards ── */
 .mh-kpi {
     background: #FFFFFF;
-    border: 1px solid #E2E8F0;
+    border: 1px solid #EAECF0;
     border-radius: 10px;
-    padding: 18px 20px 16px;
+    padding: 14px 18px 12px;
     margin-bottom: 14px;
 }
 .mh-kpi-label {
@@ -167,8 +167,8 @@ html, body, [class*="css"] {
     margin-bottom: 8px;
 }
 .mh-kpi-value {
-    font-size: 28px;
-    font-weight: 600;
+    font-size: 24px;
+    font-weight: 500;
     line-height: 1;
     letter-spacing: -0.5px;
     font-variant-numeric: tabular-nums;
@@ -187,12 +187,12 @@ html, body, [class*="css"] {
     display: flex;
     align-items: center;
     gap: 8px;
-    margin: 28px 0 14px;
+    margin: 18px 0 10px;
 }
 .mh-section-dot {
     width: 4px;
     height: 16px;
-    background: #2563EB;
+    background: #6941C6;
     border-radius: 2px;
     flex-shrink: 0;
 }
@@ -207,9 +207,9 @@ html, body, [class*="css"] {
 /* ── Card ── */
 .mh-card {
     background: #FFFFFF;
-    border: 1px solid #E2E8F0;
+    border: 1px solid #EAECF0;
     border-radius: 10px;
-    padding: 18px 20px;
+    padding: 14px 18px;
     margin-bottom: 12px;
 }
 .mh-card-title {
@@ -223,7 +223,7 @@ html, body, [class*="css"] {
 
 /* ── Insight card ── */
 .mh-insight {
-    border-left: 2px solid #2563EB;
+    border-left: 2px solid #6941C6;
     border-radius: 0 6px 6px 0;
     padding: 10px 14px;
     margin-bottom: 8px;
@@ -247,8 +247,8 @@ html, body, [class*="css"] {
 .mh-action-num {
     min-width: 20px;
     height: 20px;
-    background: #EFF6FF;
-    color: #2563EB;
+    background: #F4EBFF;
+    color: #6941C6;
     border-radius: 4px;
     display: flex;
     align-items: center;
@@ -347,13 +347,13 @@ html, body, [class*="css"] {
 /* ── AI panel ── */
 .mh-ai-panel {
     background: #F8FAFC;
-    border: 1px solid #E2E8F0;
+    border: 1px solid #EAECF0;
     border-radius: 10px;
     padding: 18px 20px;
 }
 .mh-ai-tag {
-    background: #EFF6FF;
-    color: #2563EB;
+    background: #F4EBFF;
+    color: #6941C6;
     font-size: 10px;
     font-weight: 600;
     letter-spacing: .06em;
@@ -383,8 +383,8 @@ html, body, [class*="css"] {
 }
 .mh-badge-ai {
     display: inline-block;
-    background: #EFF6FF;
-    color: #2563EB;
+    background: #F4EBFF;
+    color: #6941C6;
     font-size: 10px;
     font-weight: 600;
     padding: 2px 8px;
@@ -421,7 +421,7 @@ html, body, [class*="css"] {
 /* ── Onboarding tiles ── */
 .mh-ob-card {
     background: #FFFFFF;
-    border: 1px solid #E2E8F0;
+    border: 1px solid #EAECF0;
     border-radius: 10px;
     padding: 28px 22px;
     text-align: center;
@@ -453,6 +453,82 @@ html, body, [class*="css"] {
     text-align: center;
     margin-top: 24px;
     line-height: 1.6;
+}
+
+
+/* ── Top filter bar ── */
+.mh-filter-bar {
+    background: #FFFFFF;
+    border: 1px solid #EAECF0;
+    border-radius: 10px;
+    padding: 10px 16px;
+    margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+.mh-filter-label {
+    font-size: 10px;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: .07em;
+    color: #98A2B3;
+    margin-right: 4px;
+}
+
+/* ── Score breakdown tooltip ── */
+.mh-score-detail {
+    background: #F9FAFB;
+    border: 1px solid #EAECF0;
+    border-radius: 8px;
+    padding: 12px 14px;
+    margin-top: 8px;
+    font-size: 12px;
+    color: #475467;
+    line-height: 1.7;
+}
+.mh-score-bar-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 5px;
+}
+.mh-score-bar-label {
+    min-width: 130px;
+    font-size: 12px;
+    color: #475467;
+}
+.mh-score-bar-track {
+    flex: 1;
+    background: #EAECF0;
+    border-radius: 99px;
+    height: 6px;
+    overflow: hidden;
+}
+.mh-score-bar-fill {
+    height: 100%;
+    border-radius: 99px;
+    background: #6941C6;
+}
+.mh-score-bar-pts {
+    font-size: 11px;
+    color: #98A2B3;
+    min-width: 50px;
+    text-align: right;
+}
+
+/* ── Flag badges ── */
+.mh-flag {
+    display: inline-block;
+    background: #FFFAEB;
+    border: 0.5px solid #FEC84B;
+    color: #B54708;
+    font-size: 10px;
+    font-weight: 500;
+    padding: 2px 8px;
+    border-radius: 99px;
+    margin: 2px;
 }
 
 /* ── Streamlit overrides ── */
@@ -494,6 +570,31 @@ def fmt_money(value: float, sym: str = "$", signed: bool = False) -> str:
     """
     abs_v = abs(value)
     body  = f"{abs_v:,.0f}" if abs_v >= 1_000 else f"{abs_v:,.2f}"
+    if signed:
+        return f"+{sym}{body}" if value >= 0 else f"-{sym}{body}"
+    return f"{sym}{body}"
+
+
+def fmt_money_kpi(value: float, sym: str = "$", signed: bool = False) -> str:
+    """
+    Abbreviated money formatter for KPI cards.
+    Prevents long numbers from overflowing the card layout.
+    $1,874,413,489 → +$1.87B
+    $104,677       → $104.7K
+    $16,897        → $16,897
+    $238.35        → $238.35
+    """
+    abs_v = abs(value)
+    if abs_v >= 1_000_000_000:
+        body = f"{abs_v/1_000_000_000:.2f}B"
+    elif abs_v >= 1_000_000:
+        body = f"{abs_v/1_000_000:.2f}M"
+    elif abs_v >= 100_000:
+        body = f"{abs_v/1_000:.1f}K"
+    elif abs_v >= 1_000:
+        body = f"{abs_v:,.0f}"
+    else:
+        body = f"{abs_v:,.2f}"
     if signed:
         return f"+{sym}{body}" if value >= 0 else f"-{sym}{body}"
     return f"{sym}{body}"

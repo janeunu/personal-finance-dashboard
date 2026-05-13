@@ -373,3 +373,144 @@ def add_categories(
     df["NeedsReview"] = needs_review
 
     return df
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+#  TRANSACTION FLAGGING  —  Phase 2 intelligence
+#  Adds a "Flag" column explaining WHY a transaction needs review.
+#  Multiple flags per transaction are joined with " | ".
+# ══════════════════════════════════════════════════════════════════════════════
+
+import re as _re
+
+_GAMBLING_PAT = _re.compile(
+    r"\b(bet|sportsbet|tab\b|pokies|casino|lottery|keno|gambling|betfair|bet365|ladbrokes"
+    r"|pointsbet|neds|bluebet|draftstars)\b",
+    _re.IGNORECASE
+)
+
+_ATM_PAT = _re.compile(r"\b(atm|cash\s*withdrawal|cash\s*advance|cash\s*out)\b", _re.IGNORECASE)
+
+_ROUND_AMOUNTS = {200, 300, 400, 500, 750, 1000, 1500, 2000, 2500, 3000, 5000}
+
+
+def flag_transactions(df: "pd.DataFrame") -> "pd.DataFrame":
+    """
+    Add a 'Flag' column to the DataFrame with plain-English reasons
+    why each transaction might need manual review.
+
+    Rules applied:
+      1. Vague description     — < 5 meaningful characters after cleaning
+      2. Unusually large       — Z-score > 2.5 vs own category's average spend
+      3. Possible duplicate    — same amount + similar description within 3 days
+      4. High cash withdrawal  — ATM transaction > $300
+      5. Frequent ATM use      — more than 3 ATM transactions in the period
+      6. Gambling/risky        — keywords matching betting/gambling merchants
+      7. Round amount (large)  — exact round amounts > $200 going out
+      8. Unknown merchant      — NeedsReview=True and Low confidence
+
+    Returns a copy of df with 'Flag' and 'ReviewStatus' columns added.
+    """
+    import pandas as _pd
+    import numpy as _np
+
+    df = df.copy()
+    n = len(df)
+    flags = [""] * n
+
+    desc_col = "DescriptionClean" if "DescriptionClean" in df.columns else "Description"
+
+    # ── Rule 1: Vague description ─────────────────────────────────────────────
+    for i, desc in enumerate(df[desc_col]):
+        clean = _re.sub(r"[^a-zA-Z]", "", str(desc))
+        if len(clean) < 5:
+            flags[i] = _append_flag(flags[i], "Vague description")
+
+    # ── Rule 2: Unusually large per category ──────────────────────────────────
+    if "Category" in df.columns:
+        for cat in df["Category"].unique():
+            mask = (df["Category"] == cat) & (df["Type"] == "Expense")
+            if mask.sum() < 2:
+                continue
+            vals = df.loc[mask, "Amount"].abs()
+            mean, std = float(vals.mean()), float(vals.std())
+            if std == 0:
+                continue
+            z = (vals - mean) / std
+            for idx in vals.index[z > 2.5]:
+                pos = df.index.get_loc(idx)
+                flags[pos] = _append_flag(flags[pos], "Unusually large")
+
+    # ── Rule 3: Possible duplicate ────────────────────────────────────────────
+    dates   = df["Date"].values
+    amounts = df["Amount"].values
+    descs   = df[desc_col].astype(str).values
+    for i in range(n):
+        for j in range(i + 1, n):
+            dt = abs((dates[j] - dates[i]).astype("timedelta64[D]").astype(int))
+            if dt > 3:
+                break
+            if abs(amounts[i]) == abs(amounts[j]) and _similar(descs[i], descs[j]):
+                flags[i] = _append_flag(flags[i], "Possible duplicate")
+                flags[j] = _append_flag(flags[j], "Possible duplicate")
+
+    # ── Rules 4 & 5: ATM / cash ───────────────────────────────────────────────
+    atm_mask = df[desc_col].apply(lambda d: bool(_ATM_PAT.search(str(d))))
+    atm_count = int(atm_mask.sum())
+    for i in df.index[atm_mask]:
+        pos = df.index.get_loc(i)
+        amt = abs(float(df.loc[i, "Amount"]))
+        if amt >= 300:
+            flags[pos] = _append_flag(flags[pos], "High cash withdrawal")
+        if atm_count > 3:
+            flags[pos] = _append_flag(flags[pos], "Frequent ATM use")
+
+    # ── Rule 6: Gambling / risky ──────────────────────────────────────────────
+    for i, desc in enumerate(df[desc_col]):
+        if _GAMBLING_PAT.search(str(desc)):
+            flags[i] = _append_flag(flags[i], "Gambling / risky")
+
+    # ── Rule 7: Round amount ──────────────────────────────────────────────────
+    for i, (amt, txn_type) in enumerate(zip(df["Amount"], df.get("Type", [""] * n))):
+        if txn_type == "Expense" and abs(amt) in _ROUND_AMOUNTS:
+            flags[i] = _append_flag(flags[i], "Round amount")
+
+    # ── Rule 8: Unknown merchant (Low confidence) ─────────────────────────────
+    if "NeedsReview" in df.columns and "Confidence" in df.columns:
+        for i, (nr, conf) in enumerate(zip(df["NeedsReview"], df["Confidence"])):
+            if nr and conf == "Low":
+                flags[i] = _append_flag(flags[i], "Unknown merchant")
+
+    df["Flag"] = flags
+
+    # ── Derive ReviewStatus ───────────────────────────────────────────────────
+    def _status(row):
+        if row.get("Flag", ""):
+            return "Review"
+        if row.get("Confidence") == "High":
+            return "Auto"
+        return "Auto"
+
+    df["ReviewStatus"] = df.apply(_status, axis=1)
+
+    return df
+
+
+def _append_flag(existing: str, new_flag: str) -> str:
+    if not existing:
+        return new_flag
+    if new_flag not in existing:
+        return f"{existing} | {new_flag}"
+    return existing
+
+
+def _similar(a: str, b: str) -> bool:
+    """Returns True if two descriptions are at least 60% similar."""
+    a, b = a.lower()[:20], b.lower()[:20]
+    if a == b:
+        return True
+    shorter = min(len(a), len(b))
+    if shorter == 0:
+        return False
+    matches = sum(ca == cb for ca, cb in zip(a, b))
+    return matches / shorter >= 0.6

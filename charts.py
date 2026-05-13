@@ -27,6 +27,7 @@ from config import (
     WARNING_COLOR,
     NEUTRAL_COLOR,
     TREEMAP_SCALE,
+    CHART_COLORS,
     DAY_ORDER,
 )
 
@@ -222,12 +223,14 @@ def dow_bar(
         textposition      = "outside",
         textfont          = {"size": 10, "family": _FONT, "color": _TEXT},
     ))
+    _day_full = {"Mon":"Mondays","Tue":"Tuesdays","Wed":"Wednesdays",
+                 "Thu":"Thursdays","Fri":"Fridays","Sat":"Saturdays","Sun":"Sundays"}
     fig.update_layout(
         **_layout(height=300),
         xaxis = _xax(),
         yaxis = _yax(prefix=currency, showticklabels=False, showgrid=False),
         annotations = [dict(
-            text      = f"Most spending on <b>{peak_day}s</b>",
+            text      = f"Most spending on <b>{_day_full.get(peak_day, peak_day)}</b>",
             x=0.0, y=1.08, xref="paper", yref="paper",
             showarrow = False,
             font      = {"size": 12, "color": ACCENT_COLOR, "family": _FONT},
@@ -305,5 +308,128 @@ def savings_trend(sr_df: pd.DataFrame) -> go.Figure:
             range         = [y_min, y_max],
             tickformat    = ".0f",
         ),
+    )
+    return fig
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+#  5. SPENDING DONUT  (replaces treemap — universally understood)
+# ══════════════════════════════════════════════════════════════════════════════
+def spending_donut(
+    exp_by_category: "pd.DataFrame",
+    currency:        str = "$",
+    max_slices:      int = 6,
+) -> "go.Figure":
+    """
+    Simple donut chart showing top spending categories.
+    Non-finance users understand donuts immediately — "what percentage is each slice?"
+
+    Top N categories are shown; the rest are grouped into "Other".
+    """
+    if exp_by_category.empty:
+        fig = go.Figure()
+        fig.update_layout(**_layout(height=320))
+        return fig
+
+    top    = exp_by_category.head(max_slices).copy()
+    other  = exp_by_category.iloc[max_slices:]["Total"].sum()
+    if other > 0:
+        top = pd.concat([top, pd.DataFrame({"Category": ["Other"], "Total": [other]})])
+
+    total = float(top["Total"].sum())
+    labels = [
+        f"{row['Category']}<br>{currency}{row['Total']:,.0f}"
+        for _, row in top.iterrows()
+    ]
+
+    fig = go.Figure(go.Pie(
+        labels        = top["Category"],
+        values        = top["Total"],
+        hole          = 0.52,
+        textinfo      = "percent",
+        textfont      = {"size": 11, "family": _FONT},
+        hovertemplate = f"<b>%{{label}}</b><br>{currency}%{{value:,.0f}}<extra></extra>",
+        marker        = dict(
+            colors    = CHART_COLORS[:len(top)],
+            line      = dict(color="#FFFFFF", width=2),
+        ),
+        sort          = False,
+    ))
+    total_label = f"{currency}{total:,.0f}" if total < 100_000 else f"{currency}{total/1000:.0f}K"
+    fig.update_layout(
+        **_layout(height=320, b=16, l=0, r=0),
+        showlegend  = True,
+        legend      = dict(
+            orientation="v", x=1.02, y=0.5,
+            font=dict(size=11, family=_FONT, color=_TEXT),
+        ),
+        annotations = [dict(
+            text      = f"<b>{total_label}</b><br><span style='font-size:10px'>total spent</span>",
+            x=0.38, y=0.5, font_size=13, showarrow=False,
+            font      = {"family": _FONT, "color": "#374151"},
+        )],
+    )
+    return fig
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+#  6. INCOME VS EXPENSE GROUPED BARS  (replaces waterfall — simpler to read)
+# ══════════════════════════════════════════════════════════════════════════════
+def income_vs_expense_bars(
+    monthly_df: "pd.DataFrame",
+    currency:   str = "$",
+) -> "go.Figure":
+    """
+    Side-by-side bars showing income and expenses per month.
+    Far easier for non-finance users than a waterfall chart:
+    "the green bar should be taller than the red bar every month."
+
+    monthly_df: output of metrics.monthly_income_vs_expense()
+    """
+    if monthly_df.empty:
+        fig = go.Figure()
+        fig.update_layout(**_layout(height=320))
+        return fig
+
+    inc = monthly_df[monthly_df["Type"] == "Income"]
+    exp = monthly_df[monthly_df["Type"] == "Expense"]
+
+    fig = go.Figure()
+    fig.add_trace(go.Bar(
+        name         = "Income",
+        x            = inc["Month"],
+        y            = inc["Amount"],
+        marker_color = INCOME_COLOR,
+        marker_line_width = 0,
+        text         = [
+            f"{currency}{v/1000:.0f}K" if v >= 1000 else f"{currency}{v:.0f}"
+            for v in inc["Amount"]
+        ],
+        textposition = "outside",
+        textfont     = {"size": 10, "family": _FONT},
+    ))
+    fig.add_trace(go.Bar(
+        name         = "Spending",
+        x            = exp["Month"],
+        y            = exp["Amount"],
+        marker_color = EXPENSE_COLOR,
+        marker_line_width = 0,
+        text         = [
+            f"{currency}{v/1000:.0f}K" if v >= 1000 else f"{currency}{v:.0f}"
+            for v in exp["Amount"]
+        ],
+        textposition = "outside",
+        textfont     = {"size": 10, "family": _FONT},
+    ))
+    fig.update_layout(
+        **_layout(height=320),
+        barmode    = "group",
+        showlegend = True,
+        legend     = dict(
+            orientation="h", x=0, y=1.12,
+            font=dict(size=11, family=_FONT),
+        ),
+        xaxis = _xax(),
+        yaxis = _yax(prefix=currency),
     )
     return fig

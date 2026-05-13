@@ -85,28 +85,32 @@ SCORE_ATTENTION  = 45
 #  COLOUR TOKENS  —  5 semantic colours, used consistently in ui.py + charts.py
 #  Navy · Blue · Emerald · Rose · Amber
 # ══════════════════════════════════════════════════════════════════════════════
-NAVY_COLOR    = "#0F172A"   # slate-900  — sidebar, verdict bg, primary text
-ACCENT_COLOR  = "#2563EB"   # blue-600   — net cashflow, highlights, section dots
-INCOME_COLOR  = "#059669"   # emerald-600 — income, positive, on track
-EXPENSE_COLOR = "#E11D48"   # rose-600   — expenses, over budget
-WARNING_COLOR = "#D97706"   # amber-600  — near limit, caution
+# ══════════════════════════════════════════════════════════════════════════════
+#  COLOUR TOKENS  —  Softer, more approachable palette
+#  Charcoal · Purple · Green · Red · Amber
+# ══════════════════════════════════════════════════════════════════════════════
+NAVY_COLOR    = "#1A2332"   # softer charcoal — header bg, primary text
+ACCENT_COLOR  = "#6941C6"   # purple — highlights, section dots (distinctive, calm)
+INCOME_COLOR  = "#12B76A"   # softer emerald — income, positive, on track
+EXPENSE_COLOR = "#F04438"   # soft rose-red — expenses, over budget
+WARNING_COLOR = "#F79009"   # warm amber — near limit, caution
 
-# Supporting neutrals (not semantic — structural only)
-NEUTRAL_COLOR = "#CBD5E1"   # slate-300  — inactive chart bars
-PAGE_BG       = "#F1F5F9"   # slate-100  — page background
+# Supporting neutrals
+NEUTRAL_COLOR = "#D0D5DD"   # neutral grey — inactive bars
+PAGE_BG       = "#F7F8FA"   # near-white with a hint of cool — easy on the eyes
 CARD_BG       = "#FFFFFF"
-BORDER_COLOR  = "#E2E8F0"   # slate-200
+BORDER_COLOR  = "#EAECF0"   # very subtle card borders
 
-# Treemap: navy-to-blue single-hue scale
-TREEMAP_SCALE = [
-    "#EFF6FF", "#BFDBFE", "#93C5FD",
-    "#60A5FA", "#2563EB", "#1E40AF",
+# Donut/categorical chart palette (max 7 categories + Other)
+CHART_COLORS = [
+    "#6941C6", "#12B76A", "#F04438", "#F79009",
+    "#0891B2", "#DB2777", "#16A34A", "#D0D5DD",
 ]
 
-# Multi-series chart palette (rarely used — only for grouped bars)
-CHART_COLORS = [
-    "#2563EB", "#059669", "#E11D48",
-    "#D97706", "#7C3AED", "#0891B2",
+# Treemap scale (not used in new chart set — kept for backward compat)
+TREEMAP_SCALE = [
+    "#F4EBFF", "#D9BBFF", "#B692F6",
+    "#9E77ED", "#7F56D9", "#6941C6",
 ]
 
 # ── Encoding candidates (ordered by global prevalence) ───────────────────────

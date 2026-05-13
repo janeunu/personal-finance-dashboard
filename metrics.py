@@ -84,49 +84,217 @@ def _verdict_headline(
     return "Your finances need attention — the actions below will help most"
 
 
+def _score_income_stability(df: "pd.DataFrame") -> float:
+    """
+    20 pts — Income stability.
+    Looks at: does income arrive? Is it regular (same amount recurring)?
+    More income transactions with consistent amounts = higher score.
+    """
+    inc = df[df["Type"] == "Income"]
+    if inc.empty:
+        return 0.0
+
+    # Base: income exists
+    pts = 10.0
+
+    # Bonus: multiple distinct income events (salary arrives every month)
+    n_inc = len(inc)
+    if n_inc >= 3:
+        pts += 6.0
+    elif n_inc >= 2:
+        pts += 3.0
+
+    # Bonus: income is consistent (low variance as % of mean)
+    if n_inc >= 2:
+        mean = float(inc["Amount"].mean())
+        std  = float(inc["Amount"].std())
+        cv   = std / mean if mean > 0 else 1.0
+        if cv <= 0.10:      pts += 4.0   # very consistent (salary)
+        elif cv <= 0.25:    pts += 2.0   # somewhat consistent
+        # else: irregular freelance / variable — no bonus
+
+    return min(pts, 20.0)
+
+
+def _score_spending_control(income: float, expense: float) -> float:
+    """
+    20 pts — Spending control.
+    Expense/income ratio. Every 10% over 80% spending rate costs points.
+    """
+    if income <= 0:
+        return 0.0
+    ratio = expense / income
+    if ratio <= 0.60:   return 20.0
+    if ratio <= 0.70:   return 17.0
+    if ratio <= 0.80:   return 14.0
+    if ratio <= 0.90:   return 10.0
+    if ratio <= 1.00:   return 5.0
+    return 0.0   # spending more than earning
+
+
+def _score_savings(savings_rate: float) -> float:
+    """15 pts — Savings behaviour."""
+    if savings_rate >= 25:  return 15.0
+    if savings_rate >= 20:  return 13.0
+    if savings_rate >= 15:  return 10.0
+    if savings_rate >= 10:  return 7.0
+    if savings_rate >= 5:   return 4.0
+    if savings_rate >= 0:   return 1.0
+    return 0.0   # negative (spending > income)
+
+
+def _score_risky(df: "pd.DataFrame", income: float) -> float:
+    """
+    15 pts — Risky transactions.
+    Deductions for: gambling, high/frequent cash withdrawals.
+    Full 15 if no risk signals detected.
+    """
+    import re
+    pts = 15.0
+    desc = df["DescriptionClean"] if "DescriptionClean" in df.columns else df["Description"]
+    amounts = df["Amount"].abs()
+
+    # Gambling / betting
+    gambling_pat = re.compile(
+        r"\b(bet|sportsbet|tab\b|pokies|casino|lottery|keno|gambling|betfair|bet365|ladbrokes)\b",
+        re.IGNORECASE
+    )
+    gambling_rows = desc.apply(lambda d: bool(gambling_pat.search(str(d))))
+    if gambling_rows.any():
+        gamble_total = float(amounts[gambling_rows].sum())
+        gamble_ratio = gamble_total / income if income > 0 else 0
+        if gamble_ratio >= 0.05:    pts -= 8.0
+        elif gamble_ratio >= 0.01:  pts -= 4.0
+        else:                        pts -= 2.0
+
+    # Excessive cash withdrawals
+    atm_pat = re.compile(r"\b(atm|cash\s*withdrawal|cash\s*advance)\b", re.IGNORECASE)
+    atm_rows = desc.apply(lambda d: bool(atm_pat.search(str(d))))
+    n_atm = int(atm_rows.sum())
+    atm_total = float(amounts[atm_rows].sum())
+    atm_ratio = atm_total / income if income > 0 else 0
+    if atm_ratio >= 0.15:   pts -= 5.0
+    elif atm_ratio >= 0.08: pts -= 3.0
+    if n_atm >= 5:          pts -= 2.0
+
+    return max(pts, 0.0)
+
+
+def _score_bill_consistency(df: "pd.DataFrame") -> float:
+    """
+    15 pts — Bill payment consistency.
+    Checks for regular recurring payments (rent, utilities, phone).
+    Regular bills are a sign of financial stability.
+    """
+    import re
+    pts = 5.0   # base: some financial activity
+    exp = df[df["Type"] == "Expense"]
+    if exp.empty:
+        return pts
+
+    desc = exp["DescriptionClean"] if "DescriptionClean" in exp.columns else exp["Description"]
+
+    bill_pat = re.compile(
+        r"\b(rent|mortgage|electricity|gas\s*bill|water\s*bill|phone|internet|insurance"
+        r"|childcare|bpay|direct\s*debit|ddr)\b",
+        re.IGNORECASE
+    )
+    bill_rows = desc.apply(lambda d: bool(bill_pat.search(str(d))))
+    n_bills = int(bill_rows.sum())
+
+    if n_bills >= 5:    pts += 10.0
+    elif n_bills >= 3:  pts += 7.0
+    elif n_bills >= 1:  pts += 4.0
+
+    return min(pts, 15.0)
+
+
+def _score_balance_health(df: "pd.DataFrame") -> float:
+    """
+    10 pts — Account balance health.
+    Checks: no overdraft, positive trend.
+    If no balance column, scores based on whether net cashflow is positive.
+    """
+    pts = 5.0
+
+    # Use running balance if available (Amount represents signed transactions)
+    # Reconstruct a running total as proxy for balance health
+    running = float(df["Amount"].cumsum().min())
+    if running >= 0:
+        pts += 5.0     # never went negative during the period
+    elif running >= -100:
+        pts += 2.0     # briefly dipped but recovered
+
+    return min(pts, 10.0)
+
+
+def _score_data_quality(df: "pd.DataFrame") -> float:
+    """
+    5 pts — Data quality.
+    Fewer "Needs Review" transactions = cleaner data = more trustworthy score.
+    """
+    if "NeedsReview" not in df.columns:
+        return 3.0   # neutral
+
+    n_review = int(df["NeedsReview"].sum())
+    pct = n_review / len(df) if len(df) > 0 else 0
+
+    if pct == 0:       return 5.0
+    if pct <= 0.05:    return 4.0
+    if pct <= 0.15:    return 3.0
+    if pct <= 0.30:    return 1.0
+    return 0.0
+
+
 def _health_score(
+    df:           "pd.DataFrame",
     income:       float,
     expense:      float,
     net:          float,
     savings_rate: float,
-    sub_total:    float,
 ) -> int:
     """
-    Score out of 100 based on four factors:
-      20 pts — has income
-      25 pts — positive net cashflow
-      25 pts — savings rate (≥20% full, ≥10% partial)
-      15 pts — expense ratio vs income
-      15 pts — subscription burden vs income
+    7-component health score (0–100) with realistic variation.
+
+    Component weights:
+      Income stability    20%  — regularity and consistency of income
+      Spending control    20%  — expense-to-income ratio
+      Savings behaviour   15%  — how much is being saved
+      Risky transactions  15%  — gambling, excessive ATM use
+      Bill consistency    15%  — regular bill payments
+      Balance health      10%  — no overdraft, positive running total
+      Data quality         5%  — low needs-review count
+
+    Score bands:
+      85–100  Excellent — strong financial habits
+      70–84   Healthy   — good with room to improve
+      50–69   Needs attention
+      35–49   At risk   — multiple issues
+      0–34    Critical  — immediate action needed
     """
-    score = 0
+    import pandas as _pd
+    if not isinstance(df, _pd.DataFrame):
+        # Fallback for callers passing a non-DataFrame
+        score = 0
+        if income > 0:       score += 12
+        if net > 0:          score += 20
+        if savings_rate >= 20: score += 15
+        elif savings_rate >= 10: score += 10
+        er = expense / income if income > 0 else 1.0
+        if er <= 0.75: score += 15
+        elif er <= 0.90: score += 8
+        return min(score + 20, 100)
 
-    if income > 0:
-        score += 20
+    s1 = _score_income_stability(df)
+    s2 = _score_spending_control(income, expense)
+    s3 = _score_savings(savings_rate)
+    s4 = _score_risky(df, income)
+    s5 = _score_bill_consistency(df)
+    s6 = _score_balance_health(df)
+    s7 = _score_data_quality(df)
 
-    if net > 0:
-        score += 25
-
-    if savings_rate >= 20:
-        score += 25
-    elif savings_rate >= 10:
-        score += 15
-    elif savings_rate > 0:
-        score += 8
-
-    expense_ratio = expense / income if income > 0 else 1.0
-    if expense_ratio <= 0.75:
-        score += 15
-    elif expense_ratio <= 0.90:
-        score += 8
-
-    sub_ratio = sub_total / income if income > 0 else 0.0
-    if sub_ratio <= 0.03:
-        score += 15
-    elif sub_ratio <= 0.06:
-        score += 8
-
-    return min(score, 100)
+    total = s1 + s2 + s3 + s4 + s5 + s6 + s7
+    return max(0, min(100, round(total)))
 
 
 def compute_period_metrics(
@@ -157,7 +325,7 @@ def compute_period_metrics(
     spending_days = int(exp_df["Day"].nunique())
     avg_daily     = total_expense / max(spending_days, 1)
 
-    score = _health_score(total_income, total_expense, net, savings_rate, sub_total)
+    score = _health_score(df, total_income, total_expense, net, savings_rate)
 
     return PeriodMetrics(
         total_income     = total_income,

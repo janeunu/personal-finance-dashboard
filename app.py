@@ -28,8 +28,9 @@ import streamlit as st
 
 import charts
 import metrics as m
+from metrics import monthly_income_vs_expense
 import ui
-from categoriser import add_categories
+from categoriser import add_categories, flag_transactions
 from config import BUDGET_GUIDE
 from parser import parse_statement
 
@@ -43,47 +44,39 @@ ui.inject_css()
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-#  SIDEBAR
+#  TOP BAR  (replaces sidebar — gives full width to dashboard content)
 # ══════════════════════════════════════════════════════════════════════════════
-with st.sidebar:
-    st.markdown('<p style="font-size:10px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:#64748B;margin:6px 0 10px">Filters</p>', unsafe_allow_html=True)
-    ph_month  = st.empty()
-    ph_cat    = st.empty()
+col_upload, col_api, col_ai, col_export = st.columns([3, 2, 1, 1])
 
-    st.markdown('<div style="height:1px;background:#1E293B;margin:10px 0"></div>', unsafe_allow_html=True)
-    st.markdown('<p style="font-size:10px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:#64748B;margin:6px 0 4px">API Key</p>', unsafe_allow_html=True)
-    st.caption("Enables AI column detection and categorisation in any language.")
-    api_key = st.text_input(
-        "Anthropic API Key", type="password",
-        placeholder="sk-ant-…",
-        help="Optional. Get one free at console.anthropic.com",
+with col_upload:
+    st.markdown(
+        '<div class="mh-privacy">'
+        "🔒 Your file stays in this session — never stored or shared."
+        '</div>',
+        unsafe_allow_html=True,
+    )
+    uploaded = st.file_uploader(
+        "Upload your bank statement — CSV or Excel, any bank",
+        type=["csv", "xlsx", "xls"],
+        label_visibility="collapsed",
+        help="CSV or Excel. Needs at least a date, description, and amount column.",
     )
 
-    st.markdown('<div style="height:1px;background:#1E293B;margin:10px 0"></div>', unsafe_allow_html=True)
-    st.markdown('<p style="font-size:10px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:#64748B;margin:6px 0 10px">AI Coach</p>', unsafe_allow_html=True)
-    run_ai = st.button("✦ Generate Insights", use_container_width=True)
+with col_api:
+    api_key = st.text_input(
+        "API Key (optional)",
+        type="password",
+        placeholder="sk-ant-… for AI categorisation",
+        help="Enables AI-powered categorisation in any language.",
+    )
 
-    st.markdown('<div style="height:1px;background:#1E293B;margin:10px 0"></div>', unsafe_allow_html=True)
-    st.markdown('<p style="font-size:10px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:#64748B;margin:6px 0 10px">Export</p>', unsafe_allow_html=True)
+with col_ai:
+    st.markdown("<br>", unsafe_allow_html=True)
+    run_ai = st.button("✦ AI Insights", use_container_width=True)
+
+with col_export:
+    st.markdown("<br>", unsafe_allow_html=True)
     ph_export = st.empty()
-
-
-# ══════════════════════════════════════════════════════════════════════════════
-#  UPLOAD
-# ══════════════════════════════════════════════════════════════════════════════
-st.markdown(
-    '<div class="mh-privacy">'
-    "🔒 <b>Privacy:</b> Your file is processed only in this session — "
-    "never stored or shared. For personal tracking only, not financial advice."
-    "</div>",
-    unsafe_allow_html=True,
-)
-
-uploaded = st.file_uploader(
-    "Upload your bank statement — CSV or Excel, any bank",
-    type=["csv", "xlsx", "xls"],
-    help="CSV or Excel with at least a date column, description column, and amount (or debit/credit) column.",
-)
 
 if uploaded is None:
     ui.onboarding_tiles()
@@ -105,6 +98,7 @@ def load_data(raw: bytes, api_key_used: str, fname: str = ""):
         # Fallback: older parser.py without filename parameter
         df, meta = parse_statement(raw, api_key_used or None)
     df = add_categories(df, api_key_used or None)
+    df = flag_transactions(df)
     return df, meta
 
 
@@ -125,26 +119,41 @@ if meta.warnings:
     for w in meta.warnings:
         st.warning(w)
 
-# ── Sidebar filters (filled now that df is loaded) ───────────────────────────
-sel_month = ph_month.selectbox("Month", ["All"] + sorted(df["Month"].unique()))
-sel_cat   = ph_cat.selectbox("Category", ["All"] + sorted(df["Category"].unique()))
+# ── Top filter bar (inline — no sidebar needed) ──────────────────────────────
 ph_export.download_button(
-    "⬇ Download Categorised CSV",
+    "⬇ Export CSV",
     data      = df.to_csv(index=False).encode("utf-8"),
     file_name = "money_health_transactions.csv",
     mime      = "text/csv",
     use_container_width = True,
 )
+f1, f2, f3, _ = st.columns([2, 2, 2, 4])
+with f1:
+    sel_month = st.selectbox("Month", ["All months"] + sorted(df["Month"].unique()),
+                             label_visibility="visible")
+with f2:
+    sel_cat = st.selectbox("Category", ["All categories"] + sorted(df["Category"].unique()),
+                           label_visibility="visible")
+with f3:
+    sel_type = st.selectbox("Type", ["All types", "Income", "Expense", "Transfer"],
+                            label_visibility="visible")
+
+# Normalise filter values
+sel_month = None if sel_month == "All months" else sel_month
+sel_cat   = None if sel_cat == "All categories" else sel_cat
+sel_type  = None if sel_type == "All types" else sel_type
 
 
 # ══════════════════════════════════════════════════════════════════════════════
 #  FILTER
 # ══════════════════════════════════════════════════════════════════════════════
 fdf = df.copy()
-if sel_month != "All":
+if sel_month:
     fdf = fdf[fdf["Month"] == sel_month]
-if sel_cat != "All":
+if sel_cat:
     fdf = fdf[fdf["Category"] == sel_cat]
+if sel_type:
+    fdf = fdf[fdf["Type"] == sel_type]
 
 exp_df = fdf[fdf["Type"] == "Expense"]
 
@@ -159,7 +168,8 @@ sr_trend     = m.savings_rate_by_month(df)           # always full dataset for t
 dow_spend    = m.spend_by_dow(fdf)
 top_txns     = m.top_expenses(fdf, n=3)
 subs         = m.subscription_breakdown(fdf)
-delta        = m.previous_period(df, sel_month) if sel_month != "All" else m.PeriodDelta()
+delta        = m.previous_period(df, sel_month) if sel_month else m.PeriodDelta()
+monthly_df   = monthly_income_vs_expense(df)
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -200,7 +210,7 @@ with k1:
     net_color = ui.COLOR["income"] if period.net >= 0 else ui.COLOR["expense"]
     ui.kpi_card(
         label         = "Money left over",
-        value         = ui.fmt_money(period.net, sym, signed=True),
+        value         = ui.fmt_money_kpi(period.net, sym, signed=True),
         value_color   = net_color,
         delta_html    = ui.delta_badge(period.net, delta.prev_net),
         delta_context = "vs last month",
@@ -226,7 +236,7 @@ with k2:
         sr_context = "Spending more than you earn"
 
     ui.kpi_card(
-        label         = "Saved this month",
+        label         = "% of income saved",
         value         = ui.fmt_pct(sr, decimals=0),
         value_color   = sr_color,
         delta_html    = f'<span class="neu">{sr_context}</span>',
@@ -236,8 +246,8 @@ with k2:
 # ── KPI 3: Avg daily spend ────────────────────────────────────────────────────
 with k3:
     ui.kpi_card(
-        label         = "Avg daily spend",
-        value         = ui.fmt_money(period.avg_daily_spend, sym),
+        label         = "Daily spend (avg)",
+        value         = ui.fmt_money_kpi(period.avg_daily_spend, sym),
         value_color   = ui.COLOR["text_primary"],
         delta_html    = f'<span class="neu">Across {period.spending_days} days</span>',
         delta_context = "",
@@ -249,17 +259,17 @@ with k4:
     if needs_review_count > 0:
         nr_color = ui.COLOR["warning"] if needs_review_count < 10 else ui.COLOR["expense"]
         ui.kpi_card(
-            label         = "Needs review",
+            label         = "Check these",
             value         = str(needs_review_count),
             value_color   = nr_color,
-            delta_html    = '<span class="neu">Transactions with low confidence</span>',
+            delta_html    = '<span class="neu">Transactions to double-check</span>',
             delta_context = "",
         )
     elif top_cat and not exp_by_cat.empty:
         top_amt = float(exp_by_cat.iloc[0]["Total"])
         ui.kpi_card(
             label         = "Biggest cost",
-            value         = ui.fmt_money(top_amt, sym),
+            value         = ui.fmt_money_kpi(top_amt, sym),
             value_color   = ui.COLOR["expense"],
             delta_html    = f'<span class="neu">{top_cat}</span>',
             delta_context = "",
@@ -275,7 +285,7 @@ with k4:
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-#  §2  WATERFALL  +  SPENDING SPLIT  +  BUDGET CHECK
+#  §2  SPENDING DONUT  +  INCOME VS EXPENSE  +  BUDGET CHECK
 #
 #  Chart titles are plain <p> elements above the chart, NOT card wrappers.
 #  card_start()/card_end() around st.plotly_chart() create ghost boxes because
@@ -286,16 +296,26 @@ with k4:
 #  Charts sit directly on the page — their white paper_bgcolor is the "card".
 # ══════════════════════════════════════════════════════════════════════════════
 ui.section_header("Where did the money go?")
-col_wf, col_right = st.columns([1.6, 1])
+col_donut, col_right = st.columns([1.2, 1])
 
-with col_wf:
+with col_donut:
     st.markdown(
         '<p style="font-size:11px;font-weight:600;text-transform:uppercase;'
-        'letter-spacing:.06em;color:#64748B;margin-bottom:6px">Cash flow</p>',
+        'letter-spacing:.06em;color:#64748B;margin-bottom:6px">Spending breakdown</p>',
+        unsafe_allow_html=True,
+    )
+    if not exp_by_cat.empty:
+        st.plotly_chart(
+            charts.spending_donut(exp_by_cat, sym),
+            use_container_width=True, config={"displayModeBar": False},
+        )
+    st.markdown(
+        '<p style="font-size:11px;font-weight:600;text-transform:uppercase;'
+        'letter-spacing:.06em;color:#64748B;margin:10px 0 6px">Income vs spending by month</p>',
         unsafe_allow_html=True,
     )
     st.plotly_chart(
-        charts.waterfall_chart(exp_by_cat, period.total_income, period.total_expense, period.net, sym),
+        charts.income_vs_expense_bars(monthly_df, sym),
         use_container_width=True, config={"displayModeBar": False},
     )
 
@@ -357,15 +377,33 @@ with col_right:
 # ══════════════════════════════════════════════════════════════════════════════
 #  §3  TREEMAP  +  TOP TRANSACTIONS  +  SUBSCRIPTIONS
 # ══════════════════════════════════════════════════════════════════════════════
-ui.section_header("Spending breakdown")
-col_tree, col_detail = st.columns([1.5, 1])
+ui.section_header("Top spending areas")
+col_top, col_detail = st.columns([1.1, 1])
 
-with col_tree:
+with col_top:
+    st.markdown(
+        '<p style="font-size:11px;font-weight:600;text-transform:uppercase;'
+        'letter-spacing:.06em;color:#64748B;margin-bottom:6px">Top categories</p>',
+        unsafe_allow_html=True,
+    )
     if not exp_by_cat.empty:
-        # No card wrapper — chart renders its own white background
-        st.plotly_chart(
-            charts.spending_treemap(exp_by_cat, sym),
-            use_container_width=True, config={"displayModeBar": False},
+        bars_html = ""
+        for _, row in exp_by_cat.head(6).iterrows():
+            pct   = row["Total"] / period.total_expense * 100 if period.total_expense > 0 else 0
+            bar_w = min(pct, 100)
+            bars_html += (
+                f'<div style="margin-bottom:10px">'
+                f'<div style="display:flex;justify-content:space-between;font-size:13px;color:#374151;margin-bottom:3px">'
+                f'<span style="font-weight:500">{row["Category"]}</span>'
+                f'<span style="color:#6941C6;font-weight:600;font-variant-numeric:tabular-nums">{ui.fmt_money(row["Total"], sym)}</span>'
+                f'</div>'
+                f'<div style="background:#EAECF0;border-radius:3px;height:5px;overflow:hidden">'
+                f'<div style="width:{bar_w:.1f}%;height:100%;background:#6941C6;border-radius:3px"></div>'
+                f'</div></div>'
+            )
+        st.markdown(
+            f'<div class="mh-card">{bars_html}</div>',
+            unsafe_allow_html=True,
         )
 
 with col_detail:

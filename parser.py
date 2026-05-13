@@ -56,29 +56,159 @@ class ParseMeta:
 # ══════════════════════════════════════════════════════════════════════════════
 #  1. FILE READERS
 # ══════════════════════════════════════════════════════════════════════════════
+# Keywords that indicate a header row vs freeform metadata
+_HEADER_KEYWORDS = {
+    "date", "datum", "fecha", "buchungsdatum", "wertstellung",
+    "description", "details", "narrative", "narration", "particulars",
+    "verwendungszweck", "omschrijving", "transaction", "debit", "credit",
+    "amount", "betrag", "montant", "balance", "saldo", "withdrawal",
+}
+
+
+def _find_data_start(lines: list[str], sep: str) -> int:
+    """
+    Find the row index where the actual table data starts.
+
+    Real bank statements have freeform metadata (account name, period, etc.)
+    before the column headers. This function finds the first row that either:
+      a) contains a recognised column header keyword, OR
+      b) contains a date-like value (YYYY-MM-DD, DD/MM/YYYY, DD Mon YYYY)
+
+    Falls back to the first row with >= 3 fields if nothing better is found.
+    """
+    import re
+    date_like = re.compile(
+        r"\b(\d{4}[-/]\d{1,2}[-/]\d{1,2}"     # YYYY-MM-DD
+        r"|\d{1,2}[-/.]\d{1,2}[-/.]\d{2,4}"     # DD/MM/YYYY or DD.MM.YYYY
+        r"|\d{1,2}\s+[A-Za-z]{3}\s+\d{2,4}"    # DD Mon YYYY
+        r"|[A-Za-z]{3}\s+\d{1,2}\s+\d{4})\b"  # Mon DD YYYY
+    )
+
+    best_header_row = None
+    first_wide_row  = None
+
+    for i, line in enumerate(lines):
+        stripped = line.strip()
+        if not stripped:
+            continue
+        fields = [f.strip() for f in stripped.split(sep)]
+        non_empty = [f for f in fields if f]
+
+        if len(non_empty) < 2:
+            continue
+
+        # Track first row with 3+ fields as fallback
+        if first_wide_row is None and len(non_empty) >= 3:
+            first_wide_row = i
+
+        # Check if any field looks like a known column header keyword.
+        # Real column headers are short AND contain no digits.
+        # This excludes metadata like "Opening Balance: 3.812,50 EUR"
+        # while matching proper headers like "Date", "Debit (DR)", "Balance".
+        lower_fields = [f.lower() for f in non_empty]
+        import re as _re
+        header_like = [
+            f for f in lower_fields
+            if len(f) <= 50 and not _re.search(r"\d", f)
+        ]
+        if header_like and any(kw in " ".join(header_like) for kw in _HEADER_KEYWORDS):
+            return i
+
+        # Check if any field looks like a date — only count if >= 3 fields
+        # (metadata lines like "Period: 2026-01-01" have only 2 fields)
+        if len(non_empty) >= 3 and any(date_like.search(f) for f in non_empty):
+            # Row above is likely the header
+            return max(0, i - 1)
+
+    return first_wide_row or 0
+
+
+def _score_delimiter_result(df: pd.DataFrame) -> int:
+    """
+    Score how well a parsed DataFrame matches expected bank statement structure.
+    Higher score = better delimiter/encoding/skiprows combination.
+    """
+    score = len(df.columns) * 10   # more columns = more likely correct
+
+    header_text = " ".join(str(c).lower() for c in df.columns)
+    # Bonus for every recognised column header keyword
+    for kw in _HEADER_KEYWORDS:
+        if kw in header_text:
+            score += 15
+
+    # Penalty if header columns look like actual data (contain digits)
+    import re as _re
+    for col in df.columns:
+        if _re.search(r"\d{4}", str(col)):   # 4-digit year or number sequence
+            score -= 30
+
+    return score
+
+
 def _read_csv(raw_bytes: bytes) -> pd.DataFrame:
-    """Decode a CSV from any encoding. Tries chardet then a list of candidates."""
+    """
+    Decode a CSV from any encoding, auto-detecting the correct delimiter.
+
+    For each encoding × delimiter combination, scores the result by:
+      - Number of columns found (more = better)
+      - Whether column names match known bank statement keywords
+      - Penalty if column names look like data rows (contain long numbers)
+
+    Returns the highest-scoring valid DataFrame.
+    """
     detected  = chardet.detect(raw_bytes[:8192]).get("encoding") or ""
     candidates = dict.fromkeys([detected] + CSV_ENCODINGS)
+
+    best_df    = None
+    best_score = -9999
 
     for enc in candidates:
         if not enc:
             continue
-        # Try common delimiters: comma, semicolon, tab, pipe
+        try:
+            text  = raw_bytes.decode(enc, errors="replace")
+            lines = text.splitlines()
+        except Exception:
+            continue
+
         for sep in [",", ";", "\t", "|"]:
             try:
-                df = pd.read_csv(
-                    io.BytesIO(raw_bytes), encoding=enc,
-                    sep=sep, low_memory=False,
-                )
-                # Accept if we got at least 2 columns (1 column = wrong delimiter)
-                if not df.empty and len(df.columns) >= 2:
-                    return df
+                skip = _find_data_start(lines, sep)
+                try:
+                    df = pd.read_csv(
+                        io.BytesIO(raw_bytes), encoding=enc,
+                        sep=sep, skiprows=skip, low_memory=False,
+                        on_bad_lines="warn",
+                    )
+                except TypeError:
+                    df = pd.read_csv(
+                        io.BytesIO(raw_bytes), encoding=enc,
+                        sep=sep, skiprows=skip, low_memory=False,
+                        error_bad_lines=False,
+                    )
+                df.columns = [str(c).strip() for c in df.columns]
+                df = df.dropna(how="all")
+
+                if df.empty or len(df.columns) < 2:
+                    continue
+
+                score = _score_delimiter_result(df)
+                if score > best_score:
+                    best_score = score
+                    best_df    = df
+
             except Exception:
                 continue
 
+        # Early exit: if we found something with a high score, don't try more encodings
+        if best_score >= 50:
+            break
+
+    if best_df is not None:
+        return best_df
+
     raise ValueError(
-        "Could not decode this CSV. "
+        "Could not decode this file. "
         "Try re-exporting it as UTF-8 from Excel or your bank's app."
     )
 
@@ -170,15 +300,23 @@ _AMOUNT_KEYWORDS = [
     "金額", "금액", "مبلغ", "tutari", "số tiền", "jumlah", "จำนวนเงิน",
     "net", "debit/credit", "transaction amount", "booking amount",
 ]
-_DEBIT_KEYWORDS  = ["debit", "withdrawal", "withdrawals", "dr", "debits", "paid out", "out"]
-_CREDIT_KEYWORDS = ["credit", "deposit", "deposits", "cr", "credits", "paid in", "in"]
-_BALANCE_KEYWORDS= ["balance", "running balance", "closing balance", "ledger balance"]
+# Short ambiguous codes ("cr", "dr", "in", "out") must match the FULL
+# column name to avoid false positives like "description" matching "cr".
+# Longer keywords are safe to match as substrings.
+_DEBIT_EXACT   = {"debit", "dr", "out", "withdrawals", "debits"}
+_DEBIT_SUBSTR  = ["withdrawal", "paid out", "paid-out", "money out"]
+_CREDIT_EXACT  = {"credit", "cr", "in", "deposits", "credits"}
+_CREDIT_SUBSTR = ["deposit", "paid in", "paid-in", "money in"]
+_BALANCE_KEYWORDS = ["balance", "running balance", "closing balance", "ledger balance"]
 
 
 def _detect_heuristic(df: pd.DataFrame) -> dict:
     """
     Detect date, description, amount/debit/credit/balance columns.
-    Returns a dict with keys: date, description, amount, debit, credit, balance.
+
+    Short ambiguous codes ("cr", "dr", "in", "out") are matched EXACTLY
+    against the full column name to prevent false positives like
+    "description" matching "cr" (which caused catastrophic mis-parsing).
     """
     result = {k: None for k in ("date", "description", "amount", "debit", "credit", "balance")}
 
@@ -190,9 +328,13 @@ def _detect_heuristic(df: pd.DataFrame) -> dict:
             result["description"] = col
         if result["amount"]      is None and any(k in cl for k in _AMOUNT_KEYWORDS):
             result["amount"] = col
-        if result["debit"]       is None and any(k == cl or k in cl for k in _DEBIT_KEYWORDS):
+        if result["debit"] is None and (
+            cl in _DEBIT_EXACT or any(k in cl for k in _DEBIT_SUBSTR)
+        ):
             result["debit"] = col
-        if result["credit"]      is None and any(k == cl or k in cl for k in _CREDIT_KEYWORDS):
+        if result["credit"] is None and (
+            cl in _CREDIT_EXACT or any(k in cl for k in _CREDIT_SUBSTR)
+        ):
             result["credit"] = col
         if result["balance"]     is None and any(k in cl for k in _BALANCE_KEYWORDS):
             result["balance"] = col
@@ -361,15 +503,25 @@ def _parse_single_amount(raw: str) -> float:
 
 
 def _currency_symbol(raw_text: str) -> str:
+    # Check symbol characters first
     for sym in ["¥", "₩", "€", "£", "฿", "₹", "₺", "₴", "A$", "NZ$", "HK$", "S$", "$"]:
         if sym in raw_text:
             return sym
+    # Check text currency codes (e.g. European banks write "EUR" not "€")
+    text_upper = raw_text.upper()
+    if " EUR" in text_upper or "EUR " in text_upper or "\nEUR" in text_upper:
+        return "€"
+    if " GBP" in text_upper or "GBP " in text_upper:
+        return "£"
+    if " JPY" in text_upper or "JPY " in text_upper:
+        return "¥"
     return "$"
 
 
 def resolve_amounts(
     df: pd.DataFrame,
     col_map: dict,
+    file_text: str = "",
 ) -> tuple[pd.Series, str, str]:
     """
     Compute a single signed Amount series from whatever columns exist.
@@ -381,11 +533,13 @@ def resolve_amounts(
 
     Returns (amount_series, currency_symbol, strategy_name)
     """
-    # Detect currency from all amount-related columns
+    # Detect currency: check amount column values first, then full file text
     amt_cols = [col_map.get(k) for k in ("amount", "debit", "credit", "balance") if col_map.get(k)]
-    raw_text = " ".join(
+    col_text = " ".join(
         df[c].astype(str).head(30).str.cat(sep=" ") for c in amt_cols if c in df.columns
     )
+    # Combine column text + file header for currency detection (handles "EUR" in file header)
+    raw_text = col_text + " " + file_text[:2000]
     sym = _currency_symbol(raw_text)
 
     # Strategy 1: single amount column
@@ -533,7 +687,7 @@ def parse_statement(
         meta.warnings.append(f"{n_bad} row(s) had unreadable dates and were removed.")
 
     # ── Step 5: Resolve amounts ───────────────────────────────────────────────
-    df["Amount"], meta.currency_symbol, meta.amount_strategy = resolve_amounts(df, col_map)
+    df["Amount"], meta.currency_symbol, meta.amount_strategy = resolve_amounts(df, col_map, file_text=raw_bytes.decode(meta_enc, errors="replace")[:3000] if (meta_enc := chardet.detect(raw_bytes[:512]).get("encoding") or "utf-8") else "")
     n_bad = int(df["Amount"].isna().sum())
     if n_bad:
         meta.warnings.append(f"{n_bad} row(s) had unreadable amounts and were removed.")
