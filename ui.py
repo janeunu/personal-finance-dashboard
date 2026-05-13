@@ -456,6 +456,48 @@ html, body, [class*="css"] {
 }
 
 
+
+/* ── Score band card ── */
+.mh-score-band {
+    border-radius: 10px;
+    padding: 14px 18px;
+    margin-bottom: 12px;
+    display: flex;
+    align-items: flex-start;
+    gap: 14px;
+}
+.mh-score-band-num {
+    font-size: 40px;
+    font-weight: 600;
+    line-height: 1;
+    font-variant-numeric: tabular-nums;
+    flex-shrink: 0;
+}
+.mh-score-band-title {
+    font-size: 14px;
+    font-weight: 600;
+    margin-bottom: 4px;
+}
+.mh-score-band-desc {
+    font-size: 13px;
+    line-height: 1.6;
+    opacity: .85;
+}
+
+/* ── Review badge ── */
+.mh-review-badge {
+    display: inline-block;
+    font-size: 10px;
+    font-weight: 600;
+    padding: 2px 9px;
+    border-radius: 99px;
+    white-space: nowrap;
+}
+.mh-conf-high  { background: #ECFDF3; color: #027A48; }
+.mh-conf-med   { background: #FFFAEB; color: #B54708; }
+.mh-conf-low   { background: #FEF3F2; color: #B42318; }
+.mh-flag-badge { background: #F4EBFF; color: #5925DC; border: 0.5px solid #D9D6FE; }
+
 /* ── Top filter bar ── */
 .mh-filter-bar {
     background: #FFFFFF;
@@ -628,13 +670,17 @@ def _score_color(score: int) -> str:
 #  COMPONENTS
 # ══════════════════════════════════════════════════════════════════════════════
 
-def section_header(label: str) -> None:
-    """Blue dot + small uppercase label — clear hierarchy without visual noise."""
+def section_header(label: str, helper: str = "") -> None:
+    """Blue dot + uppercase label. Optional plain-English helper sentence."""
+    helper_html = (
+        f'<div style="font-size:13px;color:{COLOR["text_muted"]};margin:-4px 0 10px;font-weight:400">'
+        f'{helper}</div>'
+    ) if helper else ""
     st.markdown(
         f'<div class="mh-section">'
         f'<div class="mh-section-dot"></div>'
         f'<div class="mh-section-text">{label}</div>'
-        f'</div>',
+        f'</div>{helper_html}',
         unsafe_allow_html=True,
     )
 
@@ -868,5 +914,89 @@ def disclaimer() -> None:
         "Money Health is for personal education and spending awareness only. "
         "It does not constitute financial, tax, investment, or credit advice."
         '</div>',
+        unsafe_allow_html=True,
+    )
+
+
+def score_band_card(
+    score: int,
+    score_label: str,
+    score_color: str,
+    description: str,
+    tip: str,
+) -> None:
+    """Plain-English explanation of what the score means and how to improve it."""
+    bgs = {
+        "Excellent": "#ECFDF3", "Healthy": "#F4EBFF",
+        "Needs attention": "#FFFAEB", "At risk": "#FEF3F2",
+    }
+    bg = bgs.get(score_label, "#F9FAFB")
+    st.markdown(
+        f'<div class="mh-score-band" style="background:{bg}">'
+        f'  <div class="mh-score-band-num" style="color:{score_color}">{score}</div>'
+        f'  <div>'
+        f'    <div class="mh-score-band-title" style="color:{score_color}">{score_label} — {description}</div>'
+        f'    <div class="mh-score-band-desc">💡 {tip}</div>'
+        f'  </div>'
+        f'</div>',
+        unsafe_allow_html=True,
+    )
+
+
+def review_table(review_df: "pd.DataFrame", sym: str = "$") -> None:
+    """
+    Styled transaction review table with plain-English reasons and badges.
+    Shows: date, description, amount, flag reason, confidence.
+    """
+    if review_df.empty:
+        st.markdown(
+            '<div style="padding:20px;text-align:center;color:#98A2B3;font-size:13.5px">'
+            '✅ No transactions need review — all categorised with high confidence.'
+            '</div>',
+            unsafe_allow_html=True,
+        )
+        return
+
+    rows_html = ""
+    for _, row in review_df.iterrows():
+        date_str = row["Date"].strftime("%d %b %Y") if hasattr(row["Date"], "strftime") else str(row["Date"])
+        amt      = float(row["Amount"])
+        amt_str  = fmt_money(amt, sym)
+        amt_color = COLOR["expense"] if amt < 0 else COLOR["income"]
+        desc     = str(row.get("Description", ""))[:50]
+        cat      = str(row.get("Category", "Unknown"))
+        flag     = str(row.get("Flag", ""))
+        conf     = str(row.get("Confidence", ""))
+
+        conf_cls = {"High": "mh-conf-high", "Medium": "mh-conf-med", "Low": "mh-conf-low"}.get(conf, "mh-conf-low")
+        conf_html = f'<span class="mh-review-badge {conf_cls}">{conf or "Low"}</span>'
+
+        flag_badges = ""
+        if flag:
+            for f in flag.split(" | ")[:2]:
+                flag_badges += f'<span class="mh-review-badge mh-flag-badge">{f}</span> '
+
+        rows_html += (
+            f'<div style="display:grid;grid-template-columns:90px 1fr 80px 180px 70px;'
+            f'gap:8px;align-items:center;padding:9px 0;border-bottom:0.5px solid #F2F4F7;'
+            f'font-size:12.5px">'
+            f'<div style="color:#98A2B3">{date_str}</div>'
+            f'<div style="color:#374151;font-weight:500">{desc}</div>'
+            f'<div style="text-align:right;font-weight:600;color:{amt_color};font-variant-numeric:tabular-nums">{amt_str}</div>'
+            f'<div>{flag_badges}</div>'
+            f'<div>{conf_html}</div>'
+            f'</div>'
+        )
+
+    # Header row
+    header = (
+        '<div style="display:grid;grid-template-columns:90px 1fr 80px 180px 70px;'
+        'gap:8px;padding:0 0 6px;border-bottom:1px solid #EAECF0;'
+        'font-size:10px;font-weight:500;text-transform:uppercase;letter-spacing:.06em;color:#98A2B3">'
+        '<div>Date</div><div>Description</div><div style="text-align:right">Amount</div>'
+        '<div>Why flagged</div><div>Confidence</div></div>'
+    )
+    st.markdown(
+        f'<div class="mh-card">{header}{rows_html}</div>',
         unsafe_allow_html=True,
     )

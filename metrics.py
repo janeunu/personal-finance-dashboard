@@ -345,6 +345,85 @@ def compute_period_metrics(
     )
 
 
+
+# ── Score breakdown ────────────────────────────────────────────────────────────
+from dataclasses import dataclass as _dc, field as _field
+
+@_dc
+class ScoreComponent:
+    label:       str
+    description: str    # plain English: what does this measure?
+    score:       float  # actual points earned
+    max_score:   float  # maximum possible points
+    tip:         str    # one-sentence improvement suggestion
+
+
+def score_breakdown(df: pd.DataFrame) -> list[ScoreComponent]:
+    """
+    Return the per-component score details for the score explanation panel.
+    Each component shows actual pts, max pts, and a plain-English tip.
+    """
+    inc_df = df[df["Type"] == "Income"]
+    exp_df = df[df["Type"] == "Expense"]
+
+    total_income  = float(inc_df["Amount"].sum())
+    total_expense = float(exp_df["Amount"].abs().sum())
+    net           = total_income - total_expense
+    savings_rate  = (net / total_income * 100) if total_income > 0 else 0.0
+
+    s1 = _score_income_stability(df)
+    s2 = _score_spending_control(total_income, total_expense)
+    s3 = _score_savings(savings_rate)
+    s4 = _score_risky(df, total_income)
+    s5 = _score_bill_consistency(df)
+    s6 = _score_balance_health(df)
+    s7 = _score_data_quality(df)
+
+    return [
+        ScoreComponent(
+            label       = "Income stability",
+            description = "How regular and consistent your income is",
+            score       = s1, max_score = 20.0,
+            tip         = "Regular salary payments score highest. Irregular or one-off income lowers this.",
+        ),
+        ScoreComponent(
+            label       = "Spending control",
+            description = "What percentage of your income you spend",
+            score       = s2, max_score = 20.0,
+            tip         = "Spending less than 70% of income earns full points. Spending over 100% earns zero.",
+        ),
+        ScoreComponent(
+            label       = "Savings behaviour",
+            description = "How much of your income you save each month",
+            score       = s3, max_score = 15.0,
+            tip         = "Saving 20% or more of your income earns full points. Even 5–10% is a good start.",
+        ),
+        ScoreComponent(
+            label       = "Risky spending",
+            description = "Gambling, betting, or excessive cash withdrawals",
+            score       = s4, max_score = 15.0,
+            tip         = "Reduce gambling or frequent large cash withdrawals to improve this score.",
+        ),
+        ScoreComponent(
+            label       = "Bill consistency",
+            description = "Regular bill payments like rent, utilities, and subscriptions",
+            score       = s5, max_score = 15.0,
+            tip         = "Regular direct debits and BPAY payments show financial stability.",
+        ),
+        ScoreComponent(
+            label       = "Balance health",
+            description = "Whether your account balance stayed positive",
+            score       = s6, max_score = 10.0,
+            tip         = "Avoid overdrafts and keep a positive running balance throughout the month.",
+        ),
+        ScoreComponent(
+            label       = "Data quality",
+            description = "How many transactions could be confidently understood",
+            score       = s7, max_score = 5.0,
+            tip         = "Review flagged transactions to improve categorisation accuracy.",
+        ),
+    ]
+
 # ── Expense breakdown ─────────────────────────────────────────────────────────
 def expense_by_category(df: pd.DataFrame) -> pd.DataFrame:
     """Return expenses grouped by category, sorted descending by total."""

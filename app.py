@@ -24,14 +24,15 @@ Module responsibilities
 
 import os
 
+import pandas as pd
 import streamlit as st
 
 import charts
 import metrics as m
-from metrics import monthly_income_vs_expense
+from metrics import monthly_income_vs_expense, score_breakdown, ScoreComponent
 import ui
 from categoriser import add_categories, flag_transactions
-from config import BUDGET_GUIDE
+from config import BUDGET_GUIDE, ALL_CATEGORIES
 from parser import parse_statement
 
 # ── Page config ───────────────────────────────────────────────────────────────
@@ -125,6 +126,7 @@ ph_export.download_button(
     data      = df.to_csv(index=False).encode("utf-8"),
     file_name = "money_health_transactions.csv",
     mime      = "text/csv",
+    help      = "Export all transactions. For corrected categories, use the download button at the bottom of the page.",
     use_container_width = True,
 )
 f1, f2, f3, _ = st.columns([2, 2, 2, 4])
@@ -295,7 +297,7 @@ with k4:
 #  Correct pattern: one st.markdown() call = one real HTML block.
 #  Charts sit directly on the page — their white paper_bgcolor is the "card".
 # ══════════════════════════════════════════════════════════════════════════════
-ui.section_header("Where did the money go?")
+ui.section_header("Where did the money go?", "A breakdown of how your money was spent this period.")
 col_donut, col_right = st.columns([1.2, 1])
 
 with col_donut:
@@ -377,7 +379,7 @@ with col_right:
 # ══════════════════════════════════════════════════════════════════════════════
 #  §3  TREEMAP  +  TOP TRANSACTIONS  +  SUBSCRIPTIONS
 # ══════════════════════════════════════════════════════════════════════════════
-ui.section_header("Top spending areas")
+ui.section_header("Top spending areas", "Your biggest individual transactions and any recurring subscriptions.")
 col_top, col_detail = st.columns([1.1, 1])
 
 with col_top:
@@ -429,9 +431,25 @@ with col_detail:
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-#  §4  DAY-OF-WEEK  +  SAVINGS RATE TREND
+#  §4  DAY-OF-WEEK  +  SAVINGS RATE TREND  +  BALANCE TREND
 # ══════════════════════════════════════════════════════════════════════════════
-ui.section_header("Spending patterns")
+ui.section_header("Spending patterns", "When and how your spending behaviour changes over time.")
+
+# Balance trend — shown first as it's the most intuitive ("is my balance going up?")
+_bal_fig = charts.balance_trend(fdf, sym)
+if _bal_fig is not None:
+    st.markdown(
+        '<p style="font-size:11px;font-weight:600;text-transform:uppercase;' +
+        'letter-spacing:.06em;color:#64748B;margin-bottom:4px">Balance over time</p>' +
+        '<p style="font-size:12.5px;color:#98A2B3;margin-bottom:6px">'
+        'Is your account balance going up or down over this period?</p>',
+        unsafe_allow_html=True,
+    )
+    st.plotly_chart(
+        _bal_fig,
+        use_container_width=True, config={"displayModeBar": False},
+    )
+
 col_dow, col_sr = st.columns(2)
 
 with col_dow:
@@ -460,7 +478,7 @@ with col_sr:
 # ══════════════════════════════════════════════════════════════════════════════
 #  §5  INSIGHTS  ·  ACTIONS  ·  AI COACH  (tabbed)
 # ══════════════════════════════════════════════════════════════════════════════
-ui.section_header("Insights & actions")
+ui.section_header("Insights & actions", "Plain-English summary of what happened and what to do next.")
 tab_story, tab_actions, tab_ai = st.tabs(["What happened", "What to do", "AI insights"])
 
 # ── Tab 1: Story ──────────────────────────────────────────────────────────────
@@ -620,58 +638,224 @@ with tab_ai:
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-#  §6  NEEDS REVIEW  +  TRANSACTION TABLE
+#  §4b  SCORE EXPLANATION  (follows the spending section)
 # ══════════════════════════════════════════════════════════════════════════════
-ui.section_header("Transaction explorer")
+ui.section_header(
+    "Your financial health explained",
+    "See exactly how your score was calculated and what you can do to improve it.",
+)
 
-# ── Needs Review panel ────────────────────────────────────────────────────────
-needs_review_df = fdf[fdf.get("NeedsReview", False)] if "NeedsReview" in fdf.columns else pd.DataFrame()
-if not needs_review_df.empty:
-    nr_count = len(needs_review_df)
+# Score band card
+_band_info = {
+    "Excellent": ("Your finances are in great shape — keep up the good habits.",
+                  "Consider investing your savings surplus or building an emergency fund."),
+    "Healthy":   ("You have solid financial habits with a few areas to improve.",
+                  "Focus on the lowest-scoring components above to push into the Excellent band."),
+    "Needs attention": ("Some areas of your finances need attention.",
+                  "Start with the red components in the breakdown — they have the biggest impact."),
+    "At risk":   ("Multiple financial areas are under stress.",
+                  "Focus on reducing spending and building a small emergency buffer first."),
+}
+_desc, _tip = _band_info.get(period.score_label, ("Review your financial habits.", "Focus on the red components."))
+_score_color = (
+    "#12B76A" if period.health_score >= 85 else
+    "#6941C6" if period.health_score >= 70 else
+    "#F79009" if period.health_score >= 50 else
+    "#F04438"
+)
+ui.score_band_card(period.health_score, period.score_label, _score_color, _desc, _tip)
+
+# Score breakdown chart
+_breakdown = score_breakdown(fdf)
+_col_bd_chart, _col_bd_tips = st.columns([1.2, 1])
+with _col_bd_chart:
     st.markdown(
-        f'<div style="background:#FFFBEB;border:1px solid #FDE68A;border-radius:10px;'
-        f'padding:14px 18px;margin-bottom:14px">'
-        f'<div style="font-size:11px;font-weight:600;text-transform:uppercase;'
-        f'letter-spacing:.06em;color:#92400E;margin-bottom:8px">'
-        f'⚠ {nr_count} transaction{"s" if nr_count != 1 else ""} need review</div>'
-        f'<div style="font-size:13px;color:#78350F;line-height:1.55">'
-        f'These transactions could not be confidently categorised — '
-        f'descriptions were too vague, missing, or matched no known pattern. '
-        f'Check the Category column and correct any that look wrong.</div>'
-        f'</div>',
+        '<p style="font-size:11px;font-weight:600;text-transform:uppercase;'
+        'letter-spacing:.06em;color:#64748B;margin-bottom:6px">Score breakdown</p>',
         unsafe_allow_html=True,
     )
-    review_display = (
-        needs_review_df[["Date", "Description", "Amount", "Category", "Confidence"]]
-        .copy()
-        .assign(Date=needs_review_df["Date"].dt.strftime("%d %b %Y"))
+    st.plotly_chart(
+        charts.score_breakdown_chart(_breakdown),
+        use_container_width=True, config={"displayModeBar": False},
+    )
+with _col_bd_tips:
+    st.markdown(
+        '<p style="font-size:11px;font-weight:600;text-transform:uppercase;'
+        'letter-spacing:.06em;color:#64748B;margin-bottom:10px">What each score means</p>',
+        unsafe_allow_html=True,
+    )
+    for comp in _breakdown:
+        pct = comp.score / comp.max_score * 100 if comp.max_score > 0 else 0
+        dot_color = "#12B76A" if pct >= 80 else "#F79009" if pct >= 50 else "#F04438"
+        st.markdown(
+            f'<div style="display:flex;gap:8px;margin-bottom:10px;align-items:flex-start">'
+            f'<div style="width:8px;height:8px;border-radius:50%;background:{dot_color};'
+            f'flex-shrink:0;margin-top:4px"></div>'
+            f'<div><div style="font-size:13px;font-weight:500;color:#374151">{comp.label}'
+            f'<span style="color:#98A2B3;font-size:11px;margin-left:6px">{comp.score:.0f}/{comp.max_score:.0f} pts</span></div>'
+            f'<div style="font-size:12px;color:#98A2B3;margin-top:2px">{comp.tip}</div></div></div>',
+            unsafe_allow_html=True,
+        )
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+#  §6  TRANSACTIONS NEEDING REVIEW  +  FULL TRANSACTION TABLE
+# ══════════════════════════════════════════════════════════════════════════════
+ui.section_header(
+    "Transactions that need checking",
+    "These transactions had unclear descriptions, unknown merchants, or unusual amounts. "
+    "Use the Category dropdown to correct any that look wrong.",
+)
+
+# ── Session state: persist category corrections across Streamlit reruns ───────
+# Key is derived from filename + size so corrections reset when a new file is uploaded.
+_cache_key = f"cat_corrections_{uploaded.name}_{uploaded.size}"
+if _cache_key not in st.session_state:
+    st.session_state[_cache_key] = {}   # {row_position: corrected_category}
+
+# ── Build the review dataframe ────────────────────────────────────────────────
+if "Flag" in fdf.columns:
+    _flagged = (
+        fdf[fdf["Flag"] != ""]
         .sort_values("Amount")
         .reset_index(drop=True)
     )
-    st.dataframe(
-        review_display,
-        use_container_width = True,
-        height              = min(200, 40 + nr_count * 35),
-        column_config       = {
-            "Amount":     st.column_config.NumberColumn("Amount", format=f"{sym}%.2f"),
-            "Confidence": st.column_config.TextColumn("Confidence"),
-        },
+else:
+    _flagged = pd.DataFrame()
+
+if _flagged.empty:
+    st.markdown(
+        '<div style="padding:18px;text-align:center;color:#98A2B3;'
+        'font-size:13.5px;background:#F9FAFB;border:1px solid #EAECF0;border-radius:10px">'
+        '✅ All transactions were categorised with high confidence — nothing needs review.'
+        '</div>',
+        unsafe_allow_html=True,
+    )
+else:
+    # Columns to display in the editable table
+    _review_cols = [c for c in
+        ["Date", "Description", "Amount", "Category", "Flag", "Confidence"]
+        if c in _flagged.columns]
+
+    _review_df = _flagged[_review_cols].copy()
+    _review_df["Date"] = _review_df["Date"].dt.strftime("%d %b %Y")
+
+    # Apply any corrections saved from previous interactions in this session
+    for pos, corrected_cat in st.session_state[_cache_key].items():
+        if pos < len(_review_df):
+            _review_df.at[pos, "Category"] = corrected_cat
+
+    # ── Editable table with category dropdown ─────────────────────────────────
+    st.markdown(
+        f'<div style="font-size:12.5px;color:#6941C6;font-weight:500;margin-bottom:8px">'
+        f'📝 {len(_flagged)} transaction{"s" if len(_flagged) != 1 else ""} flagged '
+        f'— click any Category cell to correct it</div>',
+        unsafe_allow_html=True,
     )
 
-# ── Full transaction table ────────────────────────────────────────────────────
-cols_to_show = ["Date", "Description", "Amount", "Category", "Type", "Confidence"]
-cols_to_show = [c for c in cols_to_show if c in fdf.columns]
+    _edited = st.data_editor(
+        _review_df,
+        column_config={
+            "Date": st.column_config.TextColumn(
+                "Date",
+                disabled=True,
+            ),
+            "Description": st.column_config.TextColumn(
+                "Description",
+                disabled=True,
+                width="large",
+            ),
+            "Amount": st.column_config.NumberColumn(
+                "Amount",
+                format=f"{sym}%.2f",
+                disabled=True,
+            ),
+            "Category": st.column_config.SelectboxColumn(
+                "Category ✏",          # ✏ icon signals editability
+                options=sorted(ALL_CATEGORIES),
+                required=True,
+                width="medium",
+            ),
+            "Flag": st.column_config.TextColumn(
+                "Why flagged",
+                disabled=True,
+                width="medium",
+            ),
+            "Confidence": st.column_config.TextColumn(
+                "Confidence",
+                disabled=True,
+                width="small",
+            ),
+        },
+        use_container_width = True,
+        hide_index          = True,
+        num_rows            = "fixed",          # no adding/deleting rows
+        height              = min(420, 55 + len(_flagged) * 36),
+        key                 = f"review_editor_{_cache_key}",
+    )
 
-display_df = (
-    fdf[cols_to_show]
+    # ── Detect changes and persist to session state ───────────────────────────
+    if _edited is not None and "Category" in _edited.columns:
+        _orig_cats = _review_df["Category"].tolist()
+        _new_cats  = _edited["Category"].tolist()
+
+        for pos, (orig, new) in enumerate(zip(_orig_cats, _new_cats)):
+            if orig != new and new in ALL_CATEGORIES:
+                st.session_state[_cache_key][pos] = new
+
+    # ── Show summary of corrections ───────────────────────────────────────────
+    _n_corrections = len(st.session_state[_cache_key])
+    if _n_corrections > 0:
+        _corrected_items = ", ".join(
+            f'row {p+1} → {c}'
+            for p, c in list(st.session_state[_cache_key].items())[:3]
+        )
+        if len(st.session_state[_cache_key]) > 3:
+            _corrected_items += f" + {len(st.session_state[_cache_key]) - 3} more"
+        st.success(
+            f"✓ {_n_corrections} correction{'s' if _n_corrections != 1 else ''} saved "
+            f"for this session. ({_corrected_items})"
+        )
+        if st.button("↩ Reset all corrections", key="reset_corrections"):
+            st.session_state[_cache_key] = {}
+            st.rerun()
+
+# ── Build corrected full dataframe for analysis and export ───────────────────
+# Apply session-state corrections to the full filtered dataframe.
+fdf_corrected = fdf.copy()
+if "Flag" in fdf.columns and st.session_state.get(_cache_key):
+    # Map corrections: the flagged df was sorted by Amount + reset_index,
+    # so we need to recover the original fdf indices.
+    if not _flagged.empty:
+        _flagged_with_orig_idx = (
+            fdf[fdf["Flag"] != ""]
+            .sort_values("Amount")
+        )
+        for pos, new_cat in st.session_state[_cache_key].items():
+            if pos < len(_flagged_with_orig_idx):
+                orig_idx = _flagged_with_orig_idx.index[pos]
+                fdf_corrected.at[orig_idx, "Category"] = new_cat
+
+# ── Full transaction table (read-only, shows corrected categories) ────────────
+ui.section_header(
+    "Transaction explorer",
+    "Browse all your transactions. Categories show any corrections you made above.",
+)
+
+_show_cols = [c for c in
+    ["Date", "Description", "Amount", "Category", "Type", "Confidence", "Flag"]
+    if c in fdf_corrected.columns]
+
+_full_df = (
+    fdf_corrected[_show_cols]
     .copy()
-    .assign(Date=fdf["Date"].dt.strftime("%d %b %Y"))
+    .assign(Date=fdf_corrected["Date"].dt.strftime("%d %b %Y"))
     .sort_values("Date", ascending=False)
     .reset_index(drop=True)
 )
 
 st.dataframe(
-    display_df,
+    _full_df,
     use_container_width = True,
     height              = 420,
     column_config       = {
@@ -679,7 +863,19 @@ st.dataframe(
         "Category":   st.column_config.TextColumn("Category"),
         "Type":       st.column_config.TextColumn("Type"),
         "Confidence": st.column_config.TextColumn("Confidence"),
+        "Flag":       st.column_config.TextColumn("Flagged reason"),
     },
+)
+
+# ── Export with corrected categories ─────────────────────────────────────────
+_export_data = fdf_corrected.copy()
+_export_data["Date"] = _export_data["Date"].dt.strftime("%Y-%m-%d")
+st.download_button(
+    label     = "⬇ Download corrected CSV",
+    data      = _export_data.to_csv(index=False).encode("utf-8"),
+    file_name = "money_health_corrected.csv",
+    mime      = "text/csv",
+    help      = "Includes any category corrections you made in the review table above.",
 )
 
 # ── Footer ────────────────────────────────────────────────────────────────────

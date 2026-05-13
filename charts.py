@@ -433,3 +433,108 @@ def income_vs_expense_bars(
         yaxis = _yax(prefix=currency),
     )
     return fig
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+#  7. SCORE BREAKDOWN  (horizontal bars — shows what each component earned)
+# ══════════════════════════════════════════════════════════════════════════════
+def score_breakdown_chart(components: list) -> "go.Figure":
+    """
+    Horizontal bar chart showing the score contribution of each component.
+    Grey = maximum possible, coloured = actual earned.
+    Plain-English labels so non-finance users can understand at a glance.
+    """
+    labels  = [c.label for c in reversed(components)]
+    actuals = [c.score for c in reversed(components)]
+    maxes   = [c.max_score for c in reversed(components)]
+    gaps    = [m - a for m, a in zip(maxes, actuals)]
+    pcts    = [a / m * 100 if m > 0 else 0 for a, m in zip(actuals, maxes)]
+
+    fig = go.Figure()
+    # Background (grey = max possible)
+    fig.add_trace(go.Bar(
+        name         = "Maximum",
+        y            = labels,
+        x            = gaps,
+        orientation  = "h",
+        base         = actuals,
+        marker_color = "#EAECF0",
+        marker_line_width = 0,
+        showlegend   = False,
+        hoverinfo    = "skip",
+    ))
+    # Foreground (coloured = actual)
+    bar_colors = [
+        "#12B76A" if p >= 80 else "#F79009" if p >= 50 else "#F04438"
+        for p in pcts
+    ]
+    fig.add_trace(go.Bar(
+        name         = "Your score",
+        y            = labels,
+        x            = actuals,
+        orientation  = "h",
+        marker_color = bar_colors,
+        marker_line_width = 0,
+        text         = [f"{a:.0f}/{m:.0f}" for a, m in zip(actuals, maxes)],
+        textposition = "outside",
+        textfont     = {"size": 10, "family": _FONT, "color": _TEXT},
+    ))
+    fig.update_layout(
+        **_layout(height=280, l=130, r=50, t=8, b=8),
+        barmode    = "stack",
+        showlegend = False,
+        xaxis      = dict(showgrid=False, zeroline=False, showticklabels=False,
+                          range=[0, max(maxes) * 1.25]),
+        yaxis      = _xax(showticklabels=True),
+    )
+    return fig
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+#  8. BALANCE TREND  (line chart — most intuitive chart for non-finance users)
+# ══════════════════════════════════════════════════════════════════════════════
+def balance_trend(df: "pd.DataFrame", currency: str = "$") -> "go.Figure | None":
+    """
+    Line chart of reconstructed running balance over time.
+    Uses the cumulative sum of Amount as a proxy if no Balance column exists.
+    Returns None if insufficient data.
+    """
+    if len(df) < 3:
+        return None
+
+    # Use actual balance column if available, otherwise reconstruct
+    if "Balance" in df.columns:
+        try:
+            bal = pd.to_numeric(df["Balance"], errors="coerce").dropna()
+            dates = df.loc[bal.index, "Date"]
+            if bal.notna().sum() >= 3:
+                bal_series = bal.values
+                date_series = dates.values
+            else:
+                raise ValueError("not enough balance data")
+        except Exception:
+            bal_series = df["Amount"].cumsum().values
+            date_series = df["Date"].values
+    else:
+        bal_series = df["Amount"].cumsum().values
+        date_series = df["Date"].values
+
+    # Color dots by trend (is balance going up or down week-over-week?)
+    line_color = INCOME_COLOR if float(bal_series[-1]) >= float(bal_series[0]) else EXPENSE_COLOR
+
+    fig = go.Figure()
+    fig.add_trace(go.Scatter(
+        x            = date_series,
+        y            = bal_series,
+        mode         = "lines",
+        line         = dict(color=line_color, width=2),
+        fill         = "tozeroy",
+        fillcolor    = f"rgba({int(line_color[1:3],16)},{int(line_color[3:5],16)},{int(line_color[5:7],16)},0.07)",
+        hovertemplate= f"{currency}%{{y:,.0f}}<extra></extra>",
+    ))
+    fig.update_layout(
+        **_layout(height=220, b=24, t=8),
+        xaxis = _xax(),
+        yaxis = _yax(prefix=currency),
+    )
+    return fig
