@@ -127,3 +127,52 @@ ANTHROPIC_API_VERSION = "2023-06-01"
 ANTHROPIC_MODEL       = "claude-sonnet-4-20250514"
 AI_BATCH_SIZE         = 80        # transactions per categorisation call
 AI_TIMEOUT_SECS       = 25
+
+# ── Category colour badges ────────────────────────────────────────────────────
+CATEGORY_BADGE_COLORS: dict = {
+    "Salary":               ("#DCFCE7", "#15803D"),
+    "Freelance":            ("#DCFCE7", "#15803D"),
+    "Business Income":      ("#DCFCE7", "#15803D"),
+    "Investment Return":    ("#DCFCE7", "#15803D"),
+    "Government Payment":   ("#DCFCE7", "#15803D"),
+    "Refund":               ("#DCFCE7", "#15803D"),
+    "Other Income":         ("#DCFCE7", "#15803D"),
+    "Rent":                 ("#EDE9FE", "#5B21B6"),
+    "Mortgage":             ("#EDE9FE", "#5B21B6"),
+    "Utilities":            ("#F3E8FF", "#7E22CE"),
+    "Phone":                ("#E0E7FF", "#3730A3"),
+    "Internet":             ("#E0E7FF", "#3730A3"),
+    "Insurance":            ("#E0E7FF", "#3730A3"),
+    "Childcare":            ("#FEF9C3", "#854D0E"),
+    "Groceries":            ("#D1FAE5", "#065F46"),
+    "Eating Out":           ("#FEF3C7", "#92400E"),
+    "Coffee & Cafes":       ("#FEF3C7", "#92400E"),
+    "Alcohol & Bars":       ("#FEF3C7", "#92400E"),
+    "Transport":            ("#DBEAFE", "#1E40AF"),
+    "Fuel":                 ("#DBEAFE", "#1E40AF"),
+    "Car Expenses":         ("#DBEAFE", "#1E40AF"),
+    "Parking & Tolls":      ("#DBEAFE", "#1E40AF"),
+    "Health & Medical":     ("#FFE4E6", "#9F1239"),
+    "Pharmacy":             ("#FFE4E6", "#9F1239"),
+    "Gym & Fitness":        ("#FFE4E6", "#9F1239"),
+    "Shopping":             ("#FFEDD5", "#9A3412"),
+    "Clothing":             ("#FFEDD5", "#9A3412"),
+    "Electronics":          ("#FFEDD5", "#9A3412"),
+    "Entertainment":        ("#DBEAFE", "#1D4ED8"),
+    "Streaming":            ("#FEF9C3", "#713F12"),
+    "Subscriptions":        ("#FEF9C3", "#713F12"),
+    "Travel & Accommodation": ("#F0FDF4", "#166534"),
+    "Flights":              ("#F0FDF4", "#166534"),
+    "Education":            ("#E0F2FE", "#0C4A6E"),
+    "Charity & Donations":  ("#FCE7F3", "#831843"),
+    "ATM & Cash":           ("#F3F4F6", "#374151"),
+    "Bank Fees":            ("#F3F4F6", "#374151"),
+    "Taxes":                ("#F3F4F6", "#374151"),
+    "Transfer":             ("#F3F4F6", "#6B7280"),
+    "Credit Card Payment":  ("#F3F4F6", "#6B7280"),
+    "Other Expense":        ("#F3F4F6", "#6B7280"),
+}
+
+def category_badge_colors(category: str) -> tuple:
+    return CATEGORY_BADGE_COLORS.get(category, ("#F3F4F6", "#374151"))
+

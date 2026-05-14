@@ -538,3 +538,67 @@ def balance_trend(df: "pd.DataFrame", currency: str = "$") -> "go.Figure | None"
         yaxis = _yax(prefix=currency),
     )
     return fig
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+#  9. SPENDING HEATMAP  (day-of-week × top categories)
+#  Replaces DOW bar chart — shows WHICH categories dominate on each day.
+# ══════════════════════════════════════════════════════════════════════════════
+def spending_heatmap(df: "pd.DataFrame", currency: str = "$") -> "go.Figure":
+    """
+    Heatmap: rows = days of week, columns = top spending categories.
+    Cell value = total spent on that day in that category.
+    Gives users a quick pattern: "I spend on Groceries Mon/Wed/Sat".
+    """
+    from config import DAY_ORDER
+
+    exp_df = df[df["Type"] == "Expense"].copy()
+    if exp_df.empty:
+        return go.Figure()
+
+    # Top 7 categories by total spend
+    top_cats = (
+        exp_df.groupby("Category")["Amount"]
+        .apply(lambda x: x.abs().sum())
+        .nlargest(7)
+        .index.tolist()
+    )
+    exp_df = exp_df[exp_df["Category"].isin(top_cats)]
+
+    pivot = (
+        exp_df.groupby(["DOW", "Category"])["Amount"]
+        .apply(lambda x: x.abs().sum())
+        .unstack(fill_value=0)
+        .reindex(index=DAY_ORDER, fill_value=0)
+    )
+    # Only keep columns that are in top_cats
+    pivot = pivot[[c for c in top_cats if c in pivot.columns]]
+
+    # Custom hover text
+    hover = [
+        [f"{currency}{pivot.iloc[r, c]:,.0f}" for c in range(len(pivot.columns))]
+        for r in range(len(pivot))
+    ]
+
+    fig = go.Figure(go.Heatmap(
+        z            = pivot.values,
+        x            = pivot.columns.tolist(),
+        y            = pivot.index.tolist(),
+        text         = hover,
+        texttemplate = "%{text}",
+        textfont     = {"size": 9, "family": _FONT},
+        colorscale   = [
+            [0.0,  "#F7F8FA"],
+            [0.3,  "#DDD6FE"],
+            [0.6,  "#7F56D9"],
+            [1.0,  "#3B0764"],
+        ],
+        showscale    = False,
+        hovertemplate = "<b>%{y}</b> / <b>%{x}</b><br>%{text}<extra></extra>",
+    ))
+    fig.update_layout(
+        **_layout(height=240, l=50, r=8, t=8, b=48),
+        xaxis = dict(side="bottom", tickfont={"size": 10, "family": _FONT}, tickangle=-20),
+        yaxis = dict(tickfont={"size": 11, "family": _FONT}, autorange="reversed"),
+    )
+    return fig

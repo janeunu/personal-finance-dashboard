@@ -32,7 +32,7 @@ import metrics as m
 from metrics import monthly_income_vs_expense, score_breakdown, ScoreComponent
 import ui
 from categoriser import add_categories, flag_transactions
-from config import BUDGET_GUIDE, ALL_CATEGORIES
+from config import BUDGET_GUIDE, ALL_CATEGORIES, category_badge_colors
 from parser import parse_statement
 
 # ── Page config ───────────────────────────────────────────────────────────────
@@ -170,6 +170,16 @@ with f3:
 sel_month = None if sel_month == "All months" else sel_month
 sel_cat   = None if sel_cat == "All categories" else sel_cat
 sel_type  = None if sel_type == "All types" else sel_type
+
+# ── Section tab navigation ────────────────────────────────────────────────────
+_sections = ["Overview", "Spending", "Income", "Subscriptions", "Bills"]
+_active_section = st.radio(
+    "Section",
+    _sections,
+    horizontal=True,
+    label_visibility="collapsed",
+    key="section_tab",
+)
 
 # ══════════════════════════════════════════════════════════════════════════════
 #  FILTER  — fdf is a filtered view of master_df (never mutated)
@@ -486,7 +496,7 @@ with col_dow:
         unsafe_allow_html=True,
     )
     st.plotly_chart(
-        charts.dow_bar(dow_spend, sym),
+        charts.spending_heatmap(fdf, sym),
         use_container_width=True, config={"displayModeBar": False},
     )
 
@@ -884,40 +894,91 @@ else:
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-#  §7  TRANSACTION EXPLORER
-#
-#  Shows all transactions from master_df (filtered).
-#  Confirmed reviews appear here — they no longer show in the flagged table.
+#  §7  TRANSACTION EXPLORER — styled table with badges, confidence bars, pagination
 # ══════════════════════════════════════════════════════════════════════════════
 ui.section_header(
     "Transaction explorer",
     "All your transactions — including ones you have already reviewed and confirmed.",
 )
 
+# ── Controls row ──────────────────────────────────────────────────────────────
+_tc1, _tc2, _tc3 = st.columns([3, 1, 1])
+with _tc1:
+    _txn_search = st.text_input(
+        "Search",
+        placeholder="Search transactions, merchants…",
+        label_visibility="collapsed",
+        key="txn_search",
+    )
+with _tc2:
+    _show_flagged = st.toggle("Show only flagged ⚑", key="show_flagged")
+with _tc3:
+    _txn_page_key = "txn_page"
+    if _txn_page_key not in st.session_state:
+        st.session_state[_txn_page_key] = 0
+
+# ── Build display dataframe ───────────────────────────────────────────────────
 _show_cols = [c for c in
-    ["Date", "Description", "Amount", "Category", "Type", "ReviewStatus", "Confidence"]
+    ["Date", "Description", "Amount", "Category", "Type", "ReviewStatus", "Confidence", "Flag"]
     if c in fdf.columns]
+_txn_df = fdf[_show_cols].copy()
 
-_full_df = (
-    fdf[_show_cols]
-    .copy()
-    .assign(Date=fdf["Date"].dt.strftime("%d %b %Y"))
-    .sort_values("Date", ascending=False)
-    .reset_index(drop=True)
+# Apply search
+if _txn_search:
+    _mask = (
+        _txn_df["Description"].astype(str).str.contains(_txn_search, case=False, na=False)
+        | _txn_df["Category"].astype(str).str.contains(_txn_search, case=False, na=False)
+    )
+    _txn_df = _txn_df[_mask]
+    st.session_state[_txn_page_key] = 0   # reset to page 0 on new search
+
+# Apply flagged filter
+if _show_flagged and "Flag" in _txn_df.columns:
+    _txn_df = _txn_df[_txn_df["Flag"] != ""]
+    st.session_state[_txn_page_key] = 0
+
+_txn_df = _txn_df.sort_values("Date", ascending=False).reset_index(drop=True)
+
+# ── Render styled table ───────────────────────────────────────────────────────
+_PAGE_SIZE = 12
+_table_html, _total_pages = ui.styled_transaction_table(
+    _txn_df, sym=sym, max_rows=_PAGE_SIZE, page=st.session_state[_txn_page_key]
+)
+_start_row = st.session_state[_txn_page_key] * _PAGE_SIZE + 1
+_end_row   = min(_start_row + _PAGE_SIZE - 1, len(_txn_df))
+
+st.markdown(
+    f'<div style="font-size:12px;color:#98A2B3;margin-bottom:8px">'
+    f'Showing {_start_row}–{_end_row} of {len(_txn_df)} transactions'
+    f'{"  ·  " + str(int((fdf["ReviewStatus"]=="Review").sum())) + " pending review" if "ReviewStatus" in fdf.columns and (fdf["ReviewStatus"]=="Review").sum() > 0 else ""}'
+    f'</div>',
+    unsafe_allow_html=True,
+)
+st.markdown(
+    f'<div style="background:#FFFFFF;border:1px solid #EAECF0;border-radius:10px;padding:2px 0;overflow:hidden">'
+    f'{_table_html}</div>',
+    unsafe_allow_html=True,
 )
 
-st.dataframe(
-    _full_df,
-    use_container_width = True,
-    height              = 420,
-    column_config       = {
-        "Amount":       st.column_config.NumberColumn("Amount", format=f"{sym}%.2f"),
-        "Category":     st.column_config.TextColumn("Category"),
-        "Type":         st.column_config.TextColumn("Type"),
-        "ReviewStatus": st.column_config.TextColumn("Status"),
-        "Confidence":   st.column_config.TextColumn("Confidence"),
-    },
-)
+# ── Pagination controls ───────────────────────────────────────────────────────
+if _total_pages > 1:
+    _pp1, _pp2, _pp3 = st.columns([1, 2, 1])
+    with _pp1:
+        if st.button("← Previous", disabled=st.session_state[_txn_page_key] == 0,
+                     key="txn_prev"):
+            st.session_state[_txn_page_key] -= 1
+            st.rerun()
+    with _pp2:
+        st.markdown(
+            f'<div style="text-align:center;font-size:12.5px;color:#98A2B3;padding-top:8px">'
+            f'Page {st.session_state[_txn_page_key]+1} of {_total_pages}</div>',
+            unsafe_allow_html=True,
+        )
+    with _pp3:
+        if st.button("Next →", disabled=st.session_state[_txn_page_key] >= _total_pages - 1,
+                     key="txn_next"):
+            st.session_state[_txn_page_key] += 1
+            st.rerun()
 
 st.download_button(
     label     = "⬇ Download transactions CSV",
@@ -928,7 +989,6 @@ st.download_button(
     ),
     file_name = "money_health_transactions.csv",
     mime      = "text/csv",
-    help      = "Downloads all transactions with reviewed categories applied.",
 )
 
 # ── Footer ────────────────────────────────────────────────────────────────────

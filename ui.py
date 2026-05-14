@@ -573,6 +573,84 @@ html, body, [class*="css"] {
     margin: 2px;
 }
 
+
+/* ── Section tab pills ── */
+.mh-tabs { display:flex; gap:4px; margin-bottom:14px; flex-wrap:wrap; }
+.mh-tab {
+    padding:5px 14px; border-radius:99px; font-size:12.5px; font-weight:500;
+    cursor:pointer; border:1px solid #EAECF0; background:#FFFFFF; color:#475467;
+    font-family:'Inter',sans-serif;
+}
+.mh-tab-active {
+    background:#6941C6; color:#FFFFFF; border-color:#6941C6;
+}
+
+/* ── Category badge ── */
+.cat-badge {
+    display:inline-flex; align-items:center; gap:4px;
+    padding:2px 8px; border-radius:99px; font-size:11px; font-weight:500;
+    white-space:nowrap; font-family:'Inter',sans-serif;
+}
+.cat-dot { width:6px; height:6px; border-radius:50%; flex-shrink:0; }
+
+/* ── Confidence bar ── */
+.conf-track {
+    background:#EAECF0; border-radius:3px; height:4px; width:64px; overflow:hidden;
+}
+.conf-fill { height:100%; border-radius:3px; }
+
+/* ── Styled transaction table ── */
+.txn-table { width:100%; border-collapse:collapse; font-family:'Inter',sans-serif; }
+.txn-table th {
+    font-size:10px; font-weight:500; text-transform:uppercase; letter-spacing:.06em;
+    color:#98A2B3; padding:6px 10px; text-align:left;
+    border-bottom:1px solid #EAECF0; background:#FAFAFA;
+}
+.txn-table td {
+    font-size:13px; padding:9px 10px; border-bottom:0.5px solid #F2F4F7;
+    vertical-align:middle;
+}
+.txn-table tr:hover td { background:#FAFAFA; }
+.txn-num  { color:#D0D5DD; font-size:11px; width:28px; }
+.txn-date { color:#98A2B3; white-space:nowrap; width:90px; }
+.txn-desc { color:#374151; font-weight:500; max-width:240px; }
+.txn-desc span { display:block; color:#98A2B3; font-size:11px; font-weight:400; }
+.txn-amt-pos { color:#12B76A; font-weight:600; text-align:right; font-variant-numeric:tabular-nums; }
+.txn-amt-neg { color:#F04438; font-weight:600; text-align:right; font-variant-numeric:tabular-nums; }
+
+/* ── Period display pill ── */
+.period-pill {
+    display:inline-flex; align-items:center; gap:6px; background:#F9FAFB;
+    border:1px solid #EAECF0; border-radius:6px; padding:4px 10px;
+    font-size:12px; color:#475467; font-family:'Inter',sans-serif;
+}
+
+
+/* ── Section radio → pill tabs ── */
+div[data-testid="stHorizontalBlock"] div[data-testid="stRadio"] > div {
+    flex-direction: row !important;
+    gap: 4px;
+    flex-wrap: wrap;
+}
+div[data-testid="stRadio"] label {
+    border: 1px solid #EAECF0 !important;
+    border-radius: 99px !important;
+    padding: 4px 14px !important;
+    background: #FFFFFF !important;
+    font-size: 12.5px !important;
+    font-weight: 500 !important;
+    color: #475467 !important;
+    cursor: pointer !important;
+}
+div[data-testid="stRadio"] label[data-baseweb="radio"]:has(input:checked) {
+    background: #6941C6 !important;
+    border-color: #6941C6 !important;
+    color: #FFFFFF !important;
+}
+div[data-testid="stRadio"] [data-testid="stMarkdownContainer"] {
+    display: none !important;
+}
+
 /* ── Streamlit overrides ── */
 [data-testid="stFileUploaderDropzone"] {
     background: #FFFFFF !important;
@@ -1000,3 +1078,81 @@ def review_table(review_df: "pd.DataFrame", sym: str = "$") -> None:
         f'<div class="mh-card">{header}{rows_html}</div>',
         unsafe_allow_html=True,
     )
+
+
+def category_badge(category: str) -> str:
+    """Return an HTML badge string for a category."""
+    from config import category_badge_colors
+    bg, text = category_badge_colors(category)
+    # Dot colour matches text
+    return (
+        f'<span class="cat-badge" style="background:{bg};color:{text}">'
+        f'<span class="cat-dot" style="background:{text}"></span>'
+        f'{category}'
+        f'</span>'
+    )
+
+
+def confidence_bar(confidence: str) -> str:
+    """Return an HTML confidence progress bar."""
+    widths = {"High": 100, "Medium": 60, "Low": 25}
+    colors = {"High": "#12B76A", "Medium": "#F79009", "Low": "#F04438"}
+    w = widths.get(confidence, 25)
+    c = colors.get(confidence, "#F04438")
+    return (
+        f'<div style="display:flex;align-items:center;gap:5px">'
+        f'<div class="conf-track"><div class="conf-fill" style="width:{w}%;background:{c}"></div></div>'
+        f'<span style="font-size:10px;color:#98A2B3">{confidence or "Low"}</span>'
+        f'</div>'
+    )
+
+
+def styled_transaction_table(
+    df: "pd.DataFrame",
+    sym: str = "$",
+    max_rows: int = 12,
+    page: int = 0,
+) -> tuple[str, int]:
+    """
+    Render a styled transaction table with:
+      - Colour-coded category badges
+      - Confidence progress bars
+      - Positive amounts in green, negative in red
+    Returns (html_string, total_pages).
+    """
+    start = page * max_rows
+    page_df = df.iloc[start : start + max_rows]
+    total_pages = max(1, -(-len(df) // max_rows))
+
+    rows_html = ""
+    for i, (_, row) in enumerate(page_df.iterrows()):
+        num  = start + i + 1
+        date = row["Date"].strftime("%d %b %Y") if hasattr(row["Date"], "strftime") else str(row["Date"])
+        desc = str(row.get("Description", ""))[:42]
+        cat  = str(row.get("Category", "Other Expense"))
+        conf = str(row.get("Confidence", ""))
+        flag = str(row.get("Flag", ""))
+        amt  = float(row.get("Amount", 0))
+        amt_str   = f"+{sym}{abs(amt):,.2f}" if amt >= 0 else f"-{sym}{abs(amt):,.2f}"
+        amt_class = "txn-amt-pos" if amt >= 0 else "txn-amt-neg"
+        flag_note = f'<span style="color:#F79009;font-size:10px"> ⚑</span>' if flag else ""
+
+        rows_html += (
+            f'<tr>'
+            f'<td class="txn-num">{num}</td>'
+            f'<td class="txn-date">{date}</td>'
+            f'<td class="txn-desc">{desc}{flag_note}</td>'
+            f'<td>{category_badge(cat)}</td>'
+            f'<td>{confidence_bar(conf)}</td>'
+            f'<td class="{amt_class}">{amt_str}</td>'
+            f'</tr>'
+        )
+
+    header = (
+        '<tr>'
+        '<th>#</th><th>Date</th><th>Description</th>'
+        '<th>Category</th><th>Confidence</th><th style="text-align:right">Amount</th>'
+        '</tr>'
+    )
+    table_html = f'<table class="txn-table">{header}{rows_html}</table>'
+    return table_html, total_pages
