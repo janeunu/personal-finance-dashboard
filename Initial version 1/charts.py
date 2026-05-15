@@ -302,12 +302,11 @@ def savings_trend(sr_df: pd.DataFrame) -> go.Figure:
     fig.update_layout(
         **_layout(height=185),
         showlegend = False,
-        xaxis      = dict(
-            **_xax(),
-            tickangle = -25,
-            nticks    = 5,
-            tickfont  = {"size": 9, "family": _FONT},
-        ),
+        xaxis = _xax(
+            tickangle=-25,
+            nticks=5,
+            tickfont={"size": 9, "family": _FONT}, 
+            ),
         yaxis      = _yax(
             suffix        = "%",
             range         = [y_min, y_max],
