@@ -647,7 +647,7 @@ div[data-testid="stRadio"] label[data-baseweb="radio"]:has(input:checked) {
     border-color: #6941C6 !important;
     color: #FFFFFF !important;
 }
-div[data-testid="stRadio"] [data-testid="stMarkdownContainer"] {
+div[data-testid="stRadio"] label[data-baseweb="radio"] > div:first-child {
     display: none !important;
 }
 

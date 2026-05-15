@@ -588,10 +588,9 @@ def spending_heatmap(df: "pd.DataFrame", currency: str = "$") -> "go.Figure":
         texttemplate = "%{text}",
         textfont     = {"size": 9, "family": _FONT},
         colorscale   = [
-            [0.0,  "#F7F8FA"],
-            [0.3,  "#DDD6FE"],
-            [0.6,  "#7F56D9"],
-            [1.0,  "#3B0764"],
+            [0.0, "#F4EBFF"],
+            [0.4, "#9E77ED"],
+            [1.0, "#3B0764"],
         ],
         showscale    = False,
         hovertemplate = "<b>%{y}</b> / <b>%{x}</b><br>%{text}<extra></extra>",
