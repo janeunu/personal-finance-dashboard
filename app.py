@@ -72,11 +72,9 @@ with col_api:
     )
 
 with col_ai:
-    st.markdown("<br>", unsafe_allow_html=True)
     run_ai = st.button("✦ AI Insights", use_container_width=True)
 
 with col_export:
-    st.markdown("<br>", unsafe_allow_html=True)
     ph_export = st.empty()
 
 if uploaded is None:
@@ -153,7 +151,7 @@ ph_export.download_button(
     help      = "Download all transactions with current category corrections applied.",
     use_container_width = True,
 )
-f1, f2, f3, _ = st.columns([2, 2, 2, 4])
+f1, f2, f3 = st.columns(3)
 with f1:
     sel_month = st.selectbox("Month",
         ["All months"] + sorted(master_df["Month"].unique()),
@@ -207,120 +205,106 @@ monthly_df   = monthly_income_vs_expense(master_df)
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-#  §0  VERDICT BANNER
-#  Answers "Am I okay?" in under 3 seconds.
-#  One score. One sentence. Three numbers.
-# ══════════════════════════════════════════════════════════════════════════════
-
-ui.verdict_banner(
-    score        = period.health_score,
-    score_label  = period.score_label,
-    headline     = period.verdict_headline,
-    sub_html     = (
-        f"Earned <b>{ui.fmt_money(period.total_income, sym)}</b>"
-        f" &nbsp;&middot;&nbsp; "
-        f"Spent <b>{ui.fmt_money(period.total_expense, sym)}</b>"
-        f" &nbsp;&middot;&nbsp; "
-        f"Saved <b>{ui.fmt_money(period.net, sym, signed=True)}</b>"
-    ),
-)
-
-
-# ══════════════════════════════════════════════════════════════════════════════
-#  §1  KPI STRIP  — three numbers every user understands immediately
+#  §0 + §1  VERDICT BANNER  +  KPI GRID
 #
-#  Deliberately three (not four):
-#    1. Money left over  — the headline result, positive or negative
-#    2. Saved this month — savings rate as %, relatable goal
-#    3. Avg daily spend  — grounding number, easy to act on
-#
-#  Removed: "Flexible spending" — finance jargon unfamiliar to everyday users.
+#  V7 layout: verdict takes left ~60%, 2×2 KPI grid on right ~40%.
+#  This matches the designer's reference exactly.
 # ══════════════════════════════════════════════════════════════════════════════
+_col_verdict, _col_kpis = st.columns([1.8, 1])
 
-k1, k2, k3, k4 = st.columns(4)
-
-# ── KPI 1: Money left over ────────────────────────────────────────────────────
-with k1:
-    net_color = ui.COLOR["income"] if period.net >= 0 else ui.COLOR["expense"]
-    ui.kpi_card(
-        label         = "Money left over",
-        value         = ui.fmt_money_kpi(period.net, sym, signed=True),
-        value_color   = net_color,
-        delta_html    = ui.delta_badge(period.net, delta.prev_net),
-        delta_context = "vs last month",
+with _col_verdict:
+    ui.verdict_banner(
+        score        = period.health_score,
+        score_label  = period.score_label,
+        headline     = period.verdict_headline,
+        sub_html     = (
+            f"Earned <b>{ui.fmt_money(period.total_income, sym)}</b>"
+            f" &nbsp;&middot;&nbsp; "
+            f"Spent <b>{ui.fmt_money(period.total_expense, sym)}</b>"
+            f" &nbsp;&middot;&nbsp; "
+            f"Saved <b>{ui.fmt_money(period.net, sym, signed=True)}</b>"
+        ),
     )
 
-# ── KPI 2: Saved this month ───────────────────────────────────────────────────
-with k2:
-    sr = period.savings_rate
-    if sr >= 20:
-        sr_color   = ui.COLOR["income"]
-        sr_context = f"Goal: 20% &nbsp;&middot;&nbsp; You&#39;re ahead"
-    elif sr >= 10:
-        sr_color   = ui.COLOR["accent"]
-        sr_context = f"Goal: 20% &nbsp;&middot;&nbsp; Getting there"
-    elif sr > 0:
-        sr_color   = ui.COLOR["warning"]
-        sr_context = f"Goal: 20% &nbsp;&middot;&nbsp; Keep improving"
-    elif period.net >= 0:
-        sr_color   = ui.COLOR["warning"]
-        sr_context = "Nothing saved yet this period"
-    else:
-        sr_color   = ui.COLOR["expense"]
-        sr_context = "Spending more than you earn"
+with _col_kpis:
+    # ── 2×2 KPI grid matching V7 layout ──────────────────────────────────────
+    k1, k2 = st.columns(2)
 
-    ui.kpi_card(
-        label         = "% of income saved",
-        value         = ui.fmt_pct(sr, decimals=0),
-        value_color   = sr_color,
-        delta_html    = f'<span class="neu">{sr_context}</span>',
-        delta_context = "",
-    )
-
-# ── KPI 3: Avg daily spend ────────────────────────────────────────────────────
-with k3:
-    ui.kpi_card(
-        label         = "Daily spend (avg)",
-        value         = ui.fmt_money_kpi(period.avg_daily_spend, sym),
-        value_color   = ui.COLOR["text_primary"],
-        delta_html    = f'<span class="neu">Across {period.spending_days} days</span>',
-        delta_context = "",
-    )
-
-# ── KPI 4: Needs Review count (if any), otherwise biggest cost ──────────────
-with k4:
-    # Use master_df (not filtered fdf) so review count is always the full pending total
-    needs_review_count = int(
-        (master_df["ReviewStatus"] == "Review").sum()
-        if "ReviewStatus" in master_df.columns
-        else master_df.get("NeedsReview", pd.Series(False)).sum()
-    )
-    if needs_review_count > 0:
-        nr_color = ui.COLOR["warning"] if needs_review_count < 10 else ui.COLOR["expense"]
+    # TOP ROW
+    with k1:
+        net_color = ui.COLOR["income"] if period.net >= 0 else ui.COLOR["expense"]
         ui.kpi_card(
-            label         = "Check these",
-            value         = str(needs_review_count),
-            value_color   = nr_color,
-            delta_html    = '<span class="neu">Transactions to double-check</span>',
+            label         = "Money left over",
+            value         = ui.fmt_money_kpi(period.net, sym, signed=True),
+            value_color   = net_color,
+            delta_html    = ui.delta_badge(period.net, delta.prev_net),
+            delta_context = "vs last month",
+        )
+
+    with k2:
+        sr = period.savings_rate
+        if sr >= 20:
+            sr_color, sr_context = ui.COLOR["income"], "Goal: 20% · You're ahead"
+        elif sr >= 10:
+            sr_color, sr_context = ui.COLOR["accent"], "Goal: 20% · Getting there"
+        elif sr > 0:
+            sr_color, sr_context = ui.COLOR["warning"], "Goal: 20% · Keep improving"
+        elif period.net >= 0:
+            sr_color, sr_context = ui.COLOR["warning"], "Nothing saved yet"
+        else:
+            sr_color, sr_context = ui.COLOR["expense"], "Spending more than you earn"
+        ui.kpi_card(
+            label         = "% of income saved",
+            value         = ui.fmt_pct(sr, decimals=0),
+            value_color   = sr_color,
+            delta_html    = f'<span class="neu">{sr_context}</span>',
             delta_context = "",
         )
-    elif top_cat and not exp_by_cat.empty:
-        top_amt = float(exp_by_cat.iloc[0]["Total"])
+
+    # BOTTOM ROW
+    k3, k4 = st.columns(2)
+
+    with k3:
         ui.kpi_card(
-            label         = "Biggest cost",
-            value         = ui.fmt_money_kpi(top_amt, sym),
-            value_color   = ui.COLOR["expense"],
-            delta_html    = f'<span class="neu">{top_cat}</span>',
-            delta_context = "",
-        )
-    else:
-        ui.kpi_card(
-            label         = "Transactions",
-            value         = str(period.txn_count),
+            label         = "Daily spend (avg)",
+            value         = ui.fmt_money_kpi(period.avg_daily_spend, sym),
             value_color   = ui.COLOR["text_primary"],
-            delta_html    = '<span class="neu">This period</span>',
+            delta_html    = f'<span class="neu">Across {period.spending_days} days</span>',
             delta_context = "",
         )
+
+    with k4:
+        needs_review_count = int(
+            (master_df["ReviewStatus"] == "Review").sum()
+            if "ReviewStatus" in master_df.columns
+            else master_df.get("NeedsReview", pd.Series(False)).sum()
+        )
+        if needs_review_count > 0:
+            nr_color = ui.COLOR["warning"] if needs_review_count < 10 else ui.COLOR["expense"]
+            ui.kpi_card(
+                label         = "Check these",
+                value         = str(needs_review_count),
+                value_color   = nr_color,
+                delta_html    = '<span class="neu">Transactions to double-check</span>',
+                delta_context = "",
+            )
+        elif top_cat and not exp_by_cat.empty:
+            top_amt = float(exp_by_cat.iloc[0]["Total"])
+            ui.kpi_card(
+                label         = "Biggest cost",
+                value         = ui.fmt_money_kpi(top_amt, sym),
+                value_color   = ui.COLOR["expense"],
+                delta_html    = f'<span class="neu">{top_cat}</span>',
+                delta_context = "",
+            )
+        else:
+            ui.kpi_card(
+                label         = "Transactions",
+                value         = str(period.txn_count),
+                value_color   = ui.COLOR["text_primary"],
+                delta_html    = '<span class="neu">This period</span>',
+                delta_context = "",
+            )
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -335,7 +319,7 @@ with k4:
 #  Charts sit directly on the page — their white paper_bgcolor is the "card".
 # ══════════════════════════════════════════════════════════════════════════════
 ui.section_header("Where did the money go?", "A breakdown of how your money was spent this period.")
-col_donut, col_right = st.columns([1.2, 1])
+col_donut, col_right = st.columns([1.3, 1])
 
 with col_donut:
     st.markdown(
@@ -371,7 +355,7 @@ with col_right:
         f'<div style="height:0.5px;background:#F1F5F9;margin-bottom:14px"></div>'
         f'<div>'
         f'<div style="font-size:11px;font-weight:500;text-transform:uppercase;letter-spacing:.06em;color:#94A3B8;margin-bottom:4px">Cuttable spend</div>'
-        f'<div style="font-size:24px;font-weight:600;color:#2563EB;font-variant-numeric:tabular-nums;letter-spacing:-0.5px">{ui.fmt_money(period.flex_total, sym)}</div>'
+        f'<div style="font-size:24px;font-weight:600;color:#6941C6;font-variant-numeric:tabular-nums;letter-spacing:-0.5px">{ui.fmt_money(period.flex_total, sym)}</div>'
         f'<div style="font-size:12px;color:#94A3B8;margin-top:2px">Groceries, dining, shopping</div>'
         f'</div></div>',
         unsafe_allow_html=True,
@@ -391,7 +375,7 @@ with col_right:
         elif actual_pct > rec_pct * 0.85:
             color, status, sc = "#D97706", "Near limit", "#D97706"
         else:
-            color, status, sc = "#059669", "On track", "#059669"
+            color, status, sc = "#12B76A", "On track", "#12B76A"
         bars_html += (
             f'<div style="margin-bottom:13px">'
             f'<div style="display:flex;justify-content:space-between;align-items:center;'
@@ -414,85 +398,119 @@ with col_right:
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-#  §3  TREEMAP  +  TOP TRANSACTIONS  +  SUBSCRIPTIONS
+#  §3  TOP SPENDING AREAS
+#
+#  Structural fix: entire left column = 1 st.markdown call.
+#  Entire right column = 1 st.markdown call.
+#  Previously 10 separate Streamlit calls — each added a container with spacing.
+#  Now 2 calls — eliminates all inter-container overhead.
 # ══════════════════════════════════════════════════════════════════════════════
-ui.section_header("Top spending areas", "Your biggest individual transactions and any recurring subscriptions.")
+ui.section_header("Top spending areas")
 col_top, col_detail = st.columns([1.1, 1])
 
 with col_top:
-    st.markdown(
+    # One call: label + bars card
+    left_html = (
         '<p style="font-size:11px;font-weight:600;text-transform:uppercase;'
-        'letter-spacing:.06em;color:#64748B;margin-bottom:6px">Top categories</p>',
-        unsafe_allow_html=True,
+        'letter-spacing:.06em;color:#64748B;margin-bottom:8px">Top categories</p>'
     )
     if not exp_by_cat.empty:
-        bars_html = ""
-        for _, row in exp_by_cat.head(6).iterrows():
+        bars = ""
+        for _, row in exp_by_cat.head(5).iterrows():
             pct   = row["Total"] / period.total_expense * 100 if period.total_expense > 0 else 0
             bar_w = min(pct, 100)
-            bars_html += (
-                f'<div style="margin-bottom:10px">'
-                f'<div style="display:flex;justify-content:space-between;font-size:13px;color:#374151;margin-bottom:3px">'
+            bars += (
+                f'<div style="margin-bottom:8px">'
+                f'<div style="display:flex;justify-content:space-between;'
+                f'font-size:12.5px;color:#374151;margin-bottom:3px">'
                 f'<span style="font-weight:500">{row["Category"]}</span>'
-                f'<span style="color:#6941C6;font-weight:600;font-variant-numeric:tabular-nums">{ui.fmt_money(row["Total"], sym)}</span>'
-                f'</div>'
+                f'<span style="color:#6941C6;font-weight:600;font-variant-numeric:tabular-nums">'
+                f'{ui.fmt_money(row["Total"], sym)}</span></div>'
                 f'<div style="background:#EAECF0;border-radius:3px;height:5px;overflow:hidden">'
-                f'<div style="width:{bar_w:.1f}%;height:100%;background:#6941C6;border-radius:3px"></div>'
-                f'</div></div>'
+                f'<div style="width:{bar_w:.1f}%;height:100%;background:#6941C6;border-radius:3px">'
+                f'</div></div></div>'
             )
-        st.markdown(
-            f'<div class="mh-card">{bars_html}</div>',
-            unsafe_allow_html=True,
-        )
+        left_html += f'<div class="mh-card">{bars}</div>'
+    st.markdown(left_html, unsafe_allow_html=True)
 
 with col_detail:
-    st.markdown('<p style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:#64748B;margin-bottom:10px">Biggest single spends</p>', unsafe_allow_html=True)
-    for _, row in top_txns.iterrows():
-        ui.transaction_card(
-            amount      = ui.fmt_money(abs(row["Amount"]), sym),
-            description = str(row["Description"]),
-            date        = row["Date"].strftime("%d %b %Y"),
-            category    = str(row["Category"]),
-        )
+    # ONE call: biggest spends + subscriptions in a single HTML block
+    right_html = ""
 
-    if not subs.empty:
-        st.markdown('<p style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:#64748B;margin:16px 0 10px">Subscriptions</p>', unsafe_allow_html=True)
-        rows_html = "".join(
-            f'<div class="mh-sub-row">'
-            f'<span class="mh-sub-name">{r["Description"]}</span>'
-            f'<span class="mh-sub-amount">{ui.fmt_money(r["Amount"], sym)}</span>'
+    # Biggest single spends — compact cards, max 3
+    right_html += (
+        '<p style="font-size:11px;font-weight:600;text-transform:uppercase;'
+        'letter-spacing:.06em;color:#64748B;margin-bottom:8px">Biggest single spends</p>'
+    )
+    for _, row in top_txns.head(3).iterrows():
+        amt  = ui.fmt_money(abs(float(row["Amount"])), sym)
+        desc = str(row["Description"])[:42]
+        date = row["Date"].strftime("%d %b %Y")
+        cat  = str(row["Category"])
+        right_html += (
+            f'<div style="border:1px solid #EAECF0;border-radius:8px;'
+            f'padding:8px 13px;margin-bottom:6px">'
+            f'<div style="font-size:16px;font-weight:600;color:#F04438;'
+            f'font-variant-numeric:tabular-nums;letter-spacing:-0.3px">{amt}</div>'
+            f'<div style="font-size:12.5px;font-weight:500;color:#374151;margin:2px 0 1px">{desc}</div>'
+            f'<div style="font-size:11px;color:#94A3B8">{date} &middot; {cat}</div>'
             f'</div>'
-            for _, r in subs.iterrows()
         )
-        ui.subscription_list(rows_html, ui.fmt_money(period.sub_total, sym))
+
+    # Subscriptions — inline, max 4 rows
+    if not subs.empty:
+        right_html += (
+            '<p style="font-size:11px;font-weight:600;text-transform:uppercase;'
+            'letter-spacing:.06em;color:#64748B;margin:10px 0 7px">Subscriptions</p>'
+        )
+        sub_rows = ""
+        for _, r in subs.head(4).iterrows():
+            sub_rows += (
+                f'<div style="display:flex;justify-content:space-between;align-items:center;'
+                f'padding:5px 0;border-bottom:0.5px solid #F2F4F7">'
+                f'<span style="font-size:12.5px;color:#374151">{r["Description"]}</span>'
+                f'<span style="font-size:12.5px;font-weight:600;color:#F04438;'
+                f'font-variant-numeric:tabular-nums">{ui.fmt_money(r["Amount"], sym)}</span>'
+                f'</div>'
+            )
+        total_str = ui.fmt_money(period.sub_total, sym)
+        right_html += (
+            f'<div style="border:1px solid #EAECF0;border-radius:8px;padding:8px 13px">'
+            f'{sub_rows}'
+            f'<div style="display:flex;justify-content:space-between;align-items:center;'
+            f'padding:6px 0 0;font-size:11px;color:#98A2B3;font-weight:500">'
+            f'<span>Total / period</span>'
+            f'<span style="font-size:13px;font-weight:600;color:#F04438;'
+            f'font-variant-numeric:tabular-nums">{total_str}</span>'
+            f'</div></div>'
+        )
+
+    st.markdown(right_html, unsafe_allow_html=True)
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-#  §4  DAY-OF-WEEK  +  SAVINGS RATE TREND  +  BALANCE TREND
+#  §4  SPENDING PATTERNS
+#
+#  Structure: section header → wide balance chart → two-column bottom row.
+#  No subtitle (saves ~20px). No empty margin div. Minimum Streamlit calls.
 # ══════════════════════════════════════════════════════════════════════════════
-ui.section_header("Spending patterns", "When and how your spending behaviour changes over time.")
+ui.section_header("Spending patterns")
 
-# Balance trend — shown first as it's the most intuitive ("is my balance going up?")
 _bal_fig = charts.balance_trend(fdf, sym)
 if _bal_fig is not None:
     st.markdown(
-        '<p style="font-size:11px;font-weight:600;text-transform:uppercase;' +
-        'letter-spacing:.06em;color:#64748B;margin-bottom:4px">Balance over time</p>' +
-        '<p style="font-size:12.5px;color:#98A2B3;margin-bottom:6px">'
-        'Is your account balance going up or down over this period?</p>',
+        '<p style="font-size:11px;font-weight:600;text-transform:uppercase;'
+        'letter-spacing:.06em;color:#64748B;margin:0 0 3px">Balance over time</p>',
         unsafe_allow_html=True,
     )
-    st.plotly_chart(
-        _bal_fig,
-        use_container_width=True, config={"displayModeBar": False},
-    )
+    st.plotly_chart(_bal_fig, use_container_width=True, config={"displayModeBar": False})
 
 col_dow, col_sr = st.columns(2)
 
 with col_dow:
     st.markdown(
-        '<p style="font-size:11px;font-weight:600;text-transform:uppercase;' +
-        'letter-spacing:.06em;color:#64748B;margin-bottom:6px">When do you spend?</p>',
+        '<p style="font-size:11px;font-weight:600;text-transform:uppercase;'
+        'letter-spacing:.06em;color:#64748B;margin:0 0 3px">When do you spend?</p>',
         unsafe_allow_html=True,
     )
     st.plotly_chart(
@@ -502,8 +520,8 @@ with col_dow:
 
 with col_sr:
     st.markdown(
-        '<p style="font-size:11px;font-weight:600;text-transform:uppercase;' +
-        'letter-spacing:.06em;color:#64748B;margin-bottom:6px">Savings rate over time</p>',
+        '<p style="font-size:11px;font-weight:600;text-transform:uppercase;'
+        'letter-spacing:.06em;color:#64748B;margin:0 0 3px">Savings rate over time</p>',
         unsafe_allow_html=True,
     )
     st.plotly_chart(

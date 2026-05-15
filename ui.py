@@ -109,12 +109,13 @@ html, body, [class*="css"] {
 .mh-verdict {
     background: #0F172A;
     border-radius: 12px;
-    padding: 28px 36px;
-    margin-bottom: 20px;
+    padding: 24px 32px;
+    margin-bottom: 0;
     display: flex;
     align-items: center;
-    gap: 32px;
+    gap: 28px;
     flex-wrap: wrap;
+    min-height: 160px;
 }
 .mh-verdict-score {
     font-family: 'Inter', sans-serif;
@@ -155,8 +156,8 @@ html, body, [class*="css"] {
     background: #FFFFFF;
     border: 1px solid #EAECF0;
     border-radius: 10px;
-    padding: 14px 18px 12px;
-    margin-bottom: 14px;
+    padding: 12px 16px 10px;
+    margin-bottom: 8px;
 }
 .mh-kpi-label {
     font-size: 11px;
@@ -274,23 +275,23 @@ html, body, [class*="css"] {
 /* ── Top transaction card ── */
 .mh-txn {
     background: #FFFFFF;
-    border: 1px solid #E2E8F0;
+    border: 1px solid #EAECF0;
     border-radius: 8px;
-    padding: 12px 16px;
-    margin-bottom: 8px;
+    padding: 9px 14px;
+    margin-bottom: 6px;
 }
 .mh-txn-amount {
-    font-size: 20px;
+    font-size: 17px;
     font-weight: 600;
     font-variant-numeric: tabular-nums;
-    color: #E11D48;
+    color: #F04438;
     letter-spacing: -0.3px;
 }
 .mh-txn-desc {
-    font-size: 13px;
+    font-size: 12.5px;
     font-weight: 500;
     color: #374151;
-    margin: 3px 0 2px;
+    margin: 2px 0 1px;
 }
 .mh-txn-meta {
     font-size: 11px;
@@ -328,8 +329,8 @@ html, body, [class*="css"] {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 10px 0;
-    border-bottom: 1px solid #F1F5F9;
+    padding: 7px 0;
+    border-bottom: 1px solid #F2F4F7;
 }
 .mh-sub-row:last-child { border-bottom: none; }
 .mh-sub-name {
@@ -338,10 +339,10 @@ html, body, [class*="css"] {
     color: #374151;
 }
 .mh-sub-amount {
-    font-size: 14px;
+    font-size: 13px;
     font-weight: 600;
     font-variant-numeric: tabular-nums;
-    color: #E11D48;
+    color: #F04438;
 }
 
 /* ── AI panel ── */
@@ -411,11 +412,11 @@ html, body, [class*="css"] {
     background: #F8FAFC;
     border: 1px solid #E2E8F0;
     border-radius: 8px;
-    padding: 9px 14px;
-    margin-bottom: 18px;
+    padding: 6px 12px;
+    margin-bottom: 6px;
     font-size: 12px;
     color: #64748B;
-    line-height: 1.5;
+    line-height: 1.4;
 }
 
 /* ── Onboarding tiles ── */
@@ -627,6 +628,10 @@ html, body, [class*="css"] {
 
 
 /* ── Section radio → pill tabs ── */
+div[data-testid="stRadio"] {
+    margin-top: 4px !important;
+    margin-bottom: 4px !important;
+}
 div[data-testid="stHorizontalBlock"] div[data-testid="stRadio"] > div {
     flex-direction: row !important;
     gap: 4px;
@@ -655,7 +660,17 @@ div[data-testid="stRadio"] label[data-baseweb="radio"] > div:first-child {
 [data-testid="stFileUploaderDropzone"] {
     background: #FFFFFF !important;
     border: 1.5px dashed #CBD5E1 !important;
-    border-radius: 10px !important;
+    border-radius: 8px !important;
+    padding: 6px 12px !important;
+    min-height: 48px !important;
+}
+[data-testid="stFileUploaderDropzone"] > div {
+    padding: 4px 0 !important;
+    gap: 4px !important;
+}
+[data-testid="stFileUploader"] section p {
+    font-size: 12px !important;
+    margin: 0 !important;
 }
 div[data-testid="stHorizontalBlock"] { gap: 14px; }
 
@@ -668,6 +683,58 @@ div[data-testid="stHorizontalBlock"] { gap: 14px; }
     font-family: 'Inter', sans-serif !important;
     font-size: 13px !important;
     font-weight: 500 !important;
+
+/* ── Compact review table widgets ── */
+div[data-testid="stSelectbox"] div[role="combobox"] {
+    padding-top: 2px !important;
+    padding-bottom: 2px !important;
+    min-height: 34px !important;
+}
+div[data-testid="stButton"] button {
+    padding-top: 4px !important;
+    padding-bottom: 4px !important;
+}
+
+/* ── Top bar compact alignment ── */
+div[data-testid="stFileUploader"] {
+    margin-top: 0 !important;
+    margin-bottom: 0 !important;
+}
+div[data-testid="stFileUploader"] label { display: none !important; }
+
+/* ── Filter row: hide labels (placeholder text is sufficient) ── */
+div[data-testid="stSelectbox"] label {
+    display: none !important;
+}
+div[data-testid="stSelectbox"] {
+    margin-top: 0 !important;
+    margin-bottom: 4px !important;
+}
+
+/* ── Reduce column gap globally for tighter layout ── */
+div[data-testid="column"] {
+    padding-left: 6px !important;
+    padding-right: 6px !important;
+}
+
+/* ── Kill Streamlit plotly chart container overhead ── */
+div[data-testid="stPlotlyChart"] {
+    padding-top: 0 !important;
+    padding-bottom: 0 !important;
+}
+div[data-testid="stPlotlyChart"] > div {
+    margin-top: 0 !important;
+}
+
+/* ── Compact Streamlit markdown container in chart sections ── */
+div[data-testid="stMarkdownContainer"] p {
+    margin-top: 0 !important;
+    margin-bottom: 0 !important;
+}
+
+/* ── Reduce vertical block gap so sections breathe less ── */
+section[data-testid="stSidebar"] ~ div div[data-testid="stVerticalBlock"] > div {
+    gap: 0.4rem !important;
 }
 </style>
 """

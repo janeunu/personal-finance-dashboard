@@ -226,7 +226,7 @@ def dow_bar(
     _day_full = {"Mon":"Mondays","Tue":"Tuesdays","Wed":"Wednesdays",
                  "Thu":"Thursdays","Fri":"Fridays","Sat":"Saturdays","Sun":"Sundays"}
     fig.update_layout(
-        **_layout(height=300),
+        **_layout(height=220),
         xaxis = _xax(),
         yaxis = _yax(prefix=currency, showticklabels=False, showgrid=False),
         annotations = [dict(
@@ -300,9 +300,14 @@ def savings_trend(sr_df: pd.DataFrame) -> go.Figure:
     ))
 
     fig.update_layout(
-        **_layout(height=300),
+        **_layout(height=185),
         showlegend = False,
-        xaxis      = _xax(),
+        xaxis      = dict(
+            **_xax(),
+            tickangle = -25,
+            nticks    = 5,
+            tickfont  = {"size": 9, "family": _FONT},
+        ),
         yaxis      = _yax(
             suffix        = "%",
             range         = [y_min, y_max],
@@ -357,7 +362,7 @@ def spending_donut(
     ))
     total_label = f"{currency}{total:,.0f}" if total < 100_000 else f"{currency}{total/1000:.0f}K"
     fig.update_layout(
-        **_layout(height=320, b=16, l=0, r=0),
+        **_layout(height=310, b=12, l=0, r=0),
         showlegend  = True,
         legend      = dict(
             orientation="v", x=1.02, y=0.5,
@@ -422,7 +427,7 @@ def income_vs_expense_bars(
         textfont     = {"size": 10, "family": _FONT},
     ))
     fig.update_layout(
-        **_layout(height=320),
+        **_layout(height=265),
         barmode    = "group",
         showlegend = True,
         legend     = dict(
@@ -480,7 +485,7 @@ def score_breakdown_chart(components: list) -> "go.Figure":
         textfont     = {"size": 10, "family": _FONT, "color": _TEXT},
     ))
     fig.update_layout(
-        **_layout(height=280, l=130, r=50, t=8, b=8),
+        **_layout(height=265, l=130, r=50, t=8, b=8),
         barmode    = "stack",
         showlegend = False,
         xaxis      = dict(showgrid=False, zeroline=False, showticklabels=False,
@@ -533,7 +538,7 @@ def balance_trend(df: "pd.DataFrame", currency: str = "$") -> "go.Figure | None"
         hovertemplate= f"{currency}%{{y:,.0f}}<extra></extra>",
     ))
     fig.update_layout(
-        **_layout(height=220, b=24, t=8),
+        **_layout(height=130, b=12, t=4),
         xaxis = _xax(),
         yaxis = _yax(prefix=currency),
     )
@@ -560,7 +565,7 @@ def spending_heatmap(df: "pd.DataFrame", currency: str = "$") -> "go.Figure":
     top_cats = (
         exp_df.groupby("Category")["Amount"]
         .apply(lambda x: x.abs().sum())
-        .nlargest(7)
+        .nlargest(5)
         .index.tolist()
     )
     exp_df = exp_df[exp_df["Category"].isin(top_cats)]
@@ -596,8 +601,8 @@ def spending_heatmap(df: "pd.DataFrame", currency: str = "$") -> "go.Figure":
         hovertemplate = "<b>%{y}</b> / <b>%{x}</b><br>%{text}<extra></extra>",
     ))
     fig.update_layout(
-        **_layout(height=240, l=50, r=8, t=8, b=48),
-        xaxis = dict(side="bottom", tickfont={"size": 10, "family": _FONT}, tickangle=-20),
-        yaxis = dict(tickfont={"size": 11, "family": _FONT}, autorange="reversed"),
+        **_layout(height=185, l=52, r=8, t=4, b=36),
+        xaxis = dict(side="bottom", tickfont={"size": 9, "family": _FONT}, tickangle=-15),
+        yaxis = dict(tickfont={"size": 10, "family": _FONT}, autorange="reversed"),
     )
     return fig
