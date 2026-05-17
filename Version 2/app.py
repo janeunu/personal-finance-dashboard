@@ -806,7 +806,7 @@ with left:
                 hole=0.55,
                 color_discrete_sequence=[
                     "#0F9F6E", "#7CBFA5", "#D96C5F", "#D9A441",
-    "#6AAE9F", "#A7C957", "#C9895B"
+                    "#6AAE9F", "#A7C957", "#C9895B"
                 ],
             )
             fig_donut.update_layout(
@@ -818,28 +818,7 @@ with left:
                 showlegend=True,
                 legend=dict(orientation="h", y=-0.1)
             )
-            fig_monthly.update_xaxes(
-                showgrid=False,
-                linecolor="#E7DDCC",
-                tickfont=dict(color="#6B6258")
-            )
-
-            fig_monthly.update_yaxes(
-                showgrid=True,
-                gridcolor="#EFE6D6",
-                linecolor="#E7DDCC",
-                tickfont=dict(color="#6B6258")
-            )
-            fig_monthly.update_layout(
-                height=310,
-                margin=dict(t=10, b=10, l=10, r=10),
-                paper_bgcolor="#FFFCF5",
-                plot_bgcolor="#FFFCF5",
-                font=dict(family="Inter", size=11, color="#6B6258"),
-                legend=dict(orientation="h", y=-0.1),
-                xaxis_title="",
-                yaxis_title="",
-            )
+            # ← fig_monthly calls removed from here
             st.markdown('<div class="card"><div class="kpi-label">Spending breakdown</div>', unsafe_allow_html=True)
             st.plotly_chart(fig_donut, use_container_width=True)
             st.markdown('</div>', unsafe_allow_html=True)
@@ -847,13 +826,25 @@ with left:
             st.markdown('<div class="card">No expenses found.</div>', unsafe_allow_html=True)
 
     with chart2:
-        fig_monthly = px.bar(
+        fig_monthly = px.bar(                          # ← created here first
             monthly[monthly["Type"].isin(["Income", "Expense"])],
             x="Month",
             y="Amount",
             color="Type",
             barmode="group",
             color_discrete_map={"Income": "#0F9F6E", "Expense": "#D96C5F"},
+        )
+        # ← now safe to call update methods
+        fig_monthly.update_xaxes(
+            showgrid=False,
+            linecolor="#E7DDCC",
+            tickfont=dict(color="#6B6258")
+        )
+        fig_monthly.update_yaxes(
+            showgrid=True,
+            gridcolor="#EFE6D6",
+            linecolor="#E7DDCC",
+            tickfont=dict(color="#6B6258")
         )
         fig_monthly.update_layout(
             height=310,
