@@ -53,8 +53,10 @@ st.markdown(
     }
 
     .block-container {
-        max-width: 1180px;
+        max-width: 100% !important;
         padding-top: 0.75rem;
+        padding-left: 1.5rem !important;
+        padding-right: 1.5rem !important;
         padding-bottom: 2rem;
     }
 
@@ -400,18 +402,23 @@ def section(title: str) -> None:
 
 
 def kpi(label: str, value: str, sub: str = "", tone: str = "") -> str:
-    tone_class = {
-        "good": "good",
-        "bad": "bad",
-        "warn": "warn",
-        "purple": "purple",
-    }.get(tone, "")
+    color_map = {
+        "good":   "#079455",
+        "bad":    "#D92D20",
+        "warn":   "#B54708",
+        "purple": "#0F9F6E",
+    }
+    value_color = color_map.get(tone, "#2B2A27")
 
     return f"""
-    <div class="kpi">
-        <div class="kpi-label">{label}</div>
-        <div class="kpi-value {tone_class}">{value}</div>
-        <div class="kpi-sub">{sub}</div>
+    <div style="background:#FFFCF5;border:1px solid #E7DDCC;border-radius:16px;
+                padding:16px 17px;min-height:92px;
+                box-shadow:0 8px 24px rgba(60,45,25,0.06);">
+        <div style="font-size:10px;text-transform:uppercase;letter-spacing:.08em;
+                    color:#9A8F82;font-weight:800;margin-bottom:8px;">{label}</div>
+        <div style="font-size:23px;line-height:1.1;font-weight:800;
+                    font-variant-numeric:tabular-nums;color:{value_color};">{value}</div>
+        <div style="font-size:11.5px;color:#9A8F82;margin-top:6px;">{sub}</div>
     </div>
     """
 
@@ -775,7 +782,7 @@ with kpi_col:
 
     st.markdown(
         f"""
-        <div class="kpi-grid">
+        <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;">
             {kpi("Money left", money(net, signed=True), "after expenses", kpi_tone)}
             {kpi("Saved income", pct(savings_rate, 0), "goal: 20%+", sr_tone)}
             {kpi("Daily spend", money(daily_spend), "average per day", "")}
@@ -867,23 +874,27 @@ with right:
 
     st.markdown(
         f"""
-        <div class="card">
-            <div class="kpi-label">Your spending split</div>
+        <div style="background:#FFFCF5;border:1px solid #E7DDCC;border-radius:18px;
+                    padding:16px 18px;box-shadow:0 8px 24px rgba(60,45,25,0.06);">
+            <div style="font-size:10px;text-transform:uppercase;letter-spacing:.08em;
+                        color:#9A8F82;font-weight:800;margin-bottom:12px;">Your spending split</div>
 
-            <div class="mini-row">
+            <div style="display:flex;justify-content:space-between;align-items:center;
+                        padding:9px 0;border-bottom:1px solid #EFE6D6;">
                 <div>
-                    <div class="mini-label">Fixed bills</div>
-                    <div class="mini-sub">rent, childcare, phone, utilities</div>
+                    <div style="font-size:13px;font-weight:800;color:#2B2A27;">Fixed bills</div>
+                    <div style="font-size:11.5px;color:#9A8F82;margin-top:2px;">rent, childcare, phone, utilities</div>
                 </div>
-                <div class="mini-value">{money(fixed_total)}</div>
+                <div style="font-size:13px;font-weight:800;color:#2B2A27;">{money(fixed_total)}</div>
             </div>
 
-            <div class="mini-row">
+            <div style="display:flex;justify-content:space-between;align-items:center;
+                        padding:9px 0;">
                 <div>
-                    <div class="mini-label">Cuttable spend</div>
-                    <div class="mini-sub">groceries, dining, shopping</div>
+                    <div style="font-size:13px;font-weight:800;color:#2B2A27;">Cuttable spend</div>
+                    <div style="font-size:11.5px;color:#9A8F82;margin-top:2px;">groceries, dining, shopping</div>
                 </div>
-                <div class="mini-value purple">{money(cuttable_total)}</div>
+                <div style="font-size:13px;font-weight:800;color:#0F9F6E;">{money(cuttable_total)}</div>
             </div>
         </div>
         """,
