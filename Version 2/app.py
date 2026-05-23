@@ -132,50 +132,78 @@ st.markdown(
         box-shadow: var(--shadow);
     }
 
-    /* Money Health Score hero — V7 light style */
+    /* Money Health Score hero — dark navy (approved design) */
     .hero {
-        background: linear-gradient(135deg, #F9F4EA 0%, #EEF8F1 100%);
-        color: var(--text-primary);
-        border: 1px solid #CFE8D8;
+        background: #0F172A;
+        color: #F1F5F9;
+        border: none;
         border-radius: 20px;
         padding: 26px 30px;
-        min-height: 155px;
+        min-height: 160px;
         display: flex;
         align-items: center;
-        gap: 26px;
-        box-shadow: var(--shadow);
+        gap: 28px;
+        box-shadow: 0 20px 40px rgba(15,23,42,0.25);
     }
 
     .score {
-        font-size: 78px;
+        font-size: 80px;
         font-weight: 800;
         line-height: 1;
         letter-spacing: -4px;
         font-variant-numeric: tabular-nums;
-        color: var(--accent);
+        flex-shrink: 0;
     }
 
     .score-label {
         font-size: 10px;
         text-transform: uppercase;
         letter-spacing: .13em;
-        color: var(--text-muted);
-        font-weight: 800;
+        color: #64748B;
+        font-weight: 700;
         margin-bottom: 8px;
     }
 
     .score-title {
-        font-size: 21px;
-        font-weight: 800;
-        line-height: 1.3;
-        color: var(--text-primary);
-        margin-bottom: 8px;
+        font-size: 20px;
+        font-weight: 700;
+        line-height: 1.35;
+        color: #F1F5F9;
+        margin-bottom: 12px;
     }
 
-    .score-sub {
-        font-size: 12px;
-        color: var(--text-secondary);
-        line-height: 1.6;
+    .score-stats {
+        display: flex;
+        gap: 0;
+        margin-top: 4px;
+    }
+
+    .score-stat {
+        padding-right: 18px;
+        margin-right: 18px;
+        border-right: 1px solid #1E293B;
+    }
+
+    .score-stat:last-child {
+        border-right: none;
+        padding-right: 0;
+        margin-right: 0;
+    }
+
+    .score-stat-label {
+        font-size: 9px;
+        text-transform: uppercase;
+        letter-spacing: .1em;
+        color: #475569;
+        font-weight: 700;
+        margin-bottom: 3px;
+    }
+
+    .score-stat-value {
+        font-size: 13px;
+        font-weight: 700;
+        font-variant-numeric: tabular-nums;
+        color: #CBD5E1;
     }
 
     .kpi-grid {
@@ -346,6 +374,42 @@ st.markdown(
         font-size: 11.5px;
         color: var(--text-muted);
     }
+
+    /* ── Navigation pill tabs ── */
+    div[data-testid="stRadio"] { margin: 6px 0 10px; }
+    div[data-testid="stRadio"] > div:first-child { display: none !important; }
+    div[data-testid="stRadio"] [role="radiogroup"] {
+        display: flex !important;
+        flex-direction: row !important;
+        gap: 5px !important;
+    }
+    div[data-testid="stRadio"] label[data-baseweb="radio"] {
+        display: inline-flex !important;
+        align-items: center !important;
+        border: 1px solid #E7DDCC !important;
+        border-radius: 99px !important;
+        padding: 5px 16px !important;
+        background: #FFFCF5 !important;
+        color: #6B6258 !important;
+        font-size: 12.5px !important;
+        font-weight: 600 !important;
+        cursor: pointer !important;
+        margin: 0 !important;
+        font-family: "Inter", sans-serif !important;
+    }
+    div[data-testid="stRadio"] label[data-baseweb="radio"] > div:first-child {
+        display: none !important;
+    }
+    div[data-testid="stRadio"] label[data-baseweb="radio"]:has(input:checked) {
+        background: #0F9F6E !important;
+        border-color: #0F9F6E !important;
+        color: #FFFFFF !important;
+    }
+
+    /* ── Selectbox label hidden ── */
+    div[data-testid="stSelectbox"] label { display: none !important; }
+    div[data-testid="stPlotlyChart"] { padding: 0 !important; }
+    [data-testid="stVerticalBlock"] { gap: 0.35rem !important; }
     </style>
     """,
     unsafe_allow_html=True
@@ -392,9 +456,10 @@ def pct(value: float, decimals: int = 0) -> str:
 def section(title: str) -> None:
     st.markdown(
         f"""
-        <div class="section-title">
-            <div class="section-dot"></div>
-            <div class="section-text">{title}</div>
+        <div style="display:flex;align-items:center;gap:9px;margin:16px 0 8px">
+            <div style="width:5px;height:18px;border-radius:10px;background:#0F9F6E;flex-shrink:0"></div>
+            <div style="font-size:11px;color:#6B6258;font-weight:800;
+                        letter-spacing:.09em;text-transform:uppercase">{title}</div>
         </div>
         """,
         unsafe_allow_html=True
@@ -697,6 +762,15 @@ if type_filter != "All types":
     filtered = filtered[filtered["Type"] == type_filter]
 
 
+# ── Navigation pill tabs ──────────────────────────────────────────────────────
+st.radio(
+    "nav",
+    ["Overview", "Spending", "Income", "Subscriptions", "Bills"],
+    horizontal=True,
+    label_visibility="collapsed",
+    key="nav_tab",
+)
+
 # ============================================================
 # CALCULATIONS
 # ============================================================
@@ -761,14 +835,26 @@ with hero_col:
         f"""
         <div class="hero">
             <div class="score" style="color:{score_color(health_score)};">{health_score}</div>
-            <div>
-                <div class="score-label">Money Health Score · {label}</div>
+            <div style="flex:1">
+                <div class="score-label">✦ Money Health · {label}</div>
                 <div class="score-title">{headline}</div>
-                <div class="score-sub">
-                    Earned <b>{money(total_income)}</b> ·
-                    Spent <b>{money(total_expense)}</b> ·
-                    Money left <b>{money(net, signed=True)}</b> ·
-                    Savings rate <b>{pct(savings_rate, 1)}</b>
+                <div class="score-stats">
+                    <div class="score-stat">
+                        <div class="score-stat-label">Earned</div>
+                        <div class="score-stat-value" style="color:#34D399">{money(total_income)}</div>
+                    </div>
+                    <div class="score-stat">
+                        <div class="score-stat-label">Spent</div>
+                        <div class="score-stat-value" style="color:#F87171">{money(total_expense)}</div>
+                    </div>
+                    <div class="score-stat">
+                        <div class="score-stat-label">Saved</div>
+                        <div class="score-stat-value" style="color:#34D399">{money(net, signed=True)}</div>
+                    </div>
+                    <div class="score-stat">
+                        <div class="score-stat-label">Savings Rate</div>
+                        <div class="score-stat-value">{pct(savings_rate, 1)}</div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -907,46 +993,41 @@ with right:
         ("Eating Out", 5),
     ]
 
-    budget_html = '<div class="card" style="margin-top:10px;"><div class="kpi-label">Budget check</div>'
+    budget_html = (
+        '<div style="background:#FFFCF5;border:1px solid #E7DDCC;border-radius:18px;' 
+        'padding:16px 18px;box-shadow:0 8px 24px rgba(60,45,25,0.06);margin-top:10px;">' 
+        '<div style="font-size:10px;text-transform:uppercase;letter-spacing:.08em;' 
+        'color:#9A8F82;font-weight:800;margin-bottom:14px;">Budget check</div>'
+    )
 
     for category, recommended_pct in budget_items:
         amount = 0
-
         match = expense_summary[expense_summary["Category"] == category]
-
         if not match.empty:
             amount = match.iloc[0]["Amount"]
 
         actual_pct = (amount / total_income * 100) if total_income > 0 else 0
         width = min((actual_pct / recommended_pct * 100), 100) if recommended_pct > 0 else 0
 
-        status = "On track"
-        fill_class = ""
-
         if actual_pct > recommended_pct:
-            status = "Over"
-            fill_class = "danger"
+            status, bar_color = "Over", "#D92D20"
         elif actual_pct > recommended_pct * 0.8:
-            status = "Watch"
-            fill_class = "warn"
+            status, bar_color = "Watch", "#B54708"
+        else:
+            status, bar_color = "On track", "#0F9F6E"
 
-        budget_html += f"""
-        <div style="margin-bottom:12px;">
-            <div style="display:flex;justify-content:space-between;align-items:flex-end;">
-                <div>
-                    <div class="mini-label">{category}</div>
-                    <div class="mini-sub">{money(amount)} used</div>
-                </div>
-                <div class="mini-sub">{status}</div>
-            </div>
-            <div class="progress-track">
-                <div class="progress-fill {fill_class}" style="width:{width:.0f}%"></div>
-            </div>
-        </div>
-        """
+        budget_html += (
+            f'<div style="margin-bottom:13px;">' 
+            f'<div style="display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:5px;">' 
+            f'<div><div style="font-size:13px;font-weight:700;color:#2B2A27">{category}</div>' 
+            f'<div style="font-size:11px;color:#9A8F82;margin-top:1px">{money(amount)} used</div></div>' 
+            f'<div style="font-size:11px;font-weight:700;color:{bar_color}">{status}</div></div>' 
+            f'<div style="width:100%;height:6px;background:#EFE6D6;border-radius:99px;overflow:hidden;">' 
+            f'<div style="width:{width:.0f}%;height:100%;background:{bar_color};border-radius:99px;"></div>' 
+            f'</div></div>'
+        )
 
     budget_html += "</div>"
-
     st.markdown(budget_html, unsafe_allow_html=True)
 
 
@@ -959,56 +1040,94 @@ section("Top spending and insights")
 spend_col, insight_col = st.columns([1, 1])
 
 with spend_col:
-    rows = ""
-
+    cat_rows = ""
     if not expense_summary.empty:
+        max_amt = expense_summary.iloc[0]["Amount"] if not expense_summary.empty else 1
         for _, row in expense_summary.head(6).iterrows():
-            share = row["Amount"] / total_expense * 100 if total_expense > 0 else 0
-            rows += f"""
-            <div style="margin-bottom:12px;">
-                <div style="display:flex;justify-content:space-between;">
-                    <div class="mini-label">{row['Category']}</div>
-                    <div class="mini-value purple">{money(row['Amount'])}</div>
-                </div>
-                <div class="progress-track">
-                    <div class="progress-fill" style="width:{share:.0f}%"></div>
-                </div>
-            </div>
-            """
-
+            bar_w = row["Amount"] / max_amt * 100 if max_amt > 0 else 0
+            cat_rows += (
+                f'<div style="margin-bottom:11px;">' 
+                f'<div style="display:flex;justify-content:space-between;margin-bottom:4px;">' 
+                f'<div style="font-size:13px;font-weight:700;color:#2B2A27">{row["Category"]}</div>' 
+                f'<div style="font-size:13px;font-weight:700;color:#0F9F6E;font-variant-numeric:tabular-nums">{money(row["Amount"])}</div>' 
+                f'</div>' 
+                f'<div style="width:100%;height:6px;background:#EFE6D6;border-radius:99px;overflow:hidden;">' 
+                f'<div style="width:{bar_w:.0f}%;height:100%;background:#0F9F6E;border-radius:99px;"></div>' 
+                f'</div></div>'
+            )
+    empty_msg = '<div style="font-size:12px;color:#9A8F82">No spending categories found.</div>'
     st.markdown(
-        f"""
-        <div class="card">
-            <div class="kpi-label">Top categories</div>
-            {rows if rows else '<div class="mini-sub">No spending categories found.</div>'}
-        </div>
-        """,
+        '<div style="background:#FFFCF5;border:1px solid #E7DDCC;border-radius:18px;' 
+        'padding:16px 18px;box-shadow:0 8px 24px rgba(60,45,25,0.06);">' 
+        '<div style="font-size:10px;text-transform:uppercase;letter-spacing:.08em;' 
+        'color:#9A8F82;font-weight:800;margin-bottom:14px;">Top categories</div>' 
+        + (cat_rows if cat_rows else empty_msg) + '</div>',
         unsafe_allow_html=True
     )
 
 with insight_col:
     insights = build_insights(
-        total_income,
-        total_expense,
-        net,
-        savings_rate,
-        expense_summary,
-        subs_total
+        total_income, total_expense, net, savings_rate, expense_summary, subs_total
     )
-
-    insight_html = '<div style="display:grid;grid-template-columns:1fr;gap:10px;">'
-
+    insight_html = '<div style="display:flex;flex-direction:column;gap:9px;">'
     for item in insights:
-        insight_html += f"""
-        <div class="insight">
-            <div class="insight-title">{item['title']}</div>
-            <div class="insight-body">{item['body']}</div>
-        </div>
-        """
-
-    insight_html += "</div>"
-
+        insight_html += (
+            f'<div style="background:#FFF8EA;border:1px solid #EAD9B7;border-radius:16px;' 
+            f'padding:14px 16px;box-shadow:0 8px 24px rgba(60,45,25,0.06);">' 
+            f'<div style="font-size:13.5px;font-weight:800;color:#2B2A27;margin-bottom:5px">{item["title"]}</div>' 
+            f'<div style="font-size:12.5px;color:#6B6258;line-height:1.55">{item["body"]}</div>' 
+            f'</div>'
+        )
+    insight_html += '</div>'
     st.markdown(insight_html, unsafe_allow_html=True)
+
+
+# ============================================================
+# SUBSCRIPTIONS SECTION
+# ============================================================
+
+section("Subscriptions")
+
+subs_df = expense_df[expense_df["Category"] == "Subscriptions"].copy()
+subs_df = subs_df.sort_values("Amount")
+
+if subs_df.empty:
+    st.markdown(
+        '<div style="background:#FFFCF5;border:1px solid #E7DDCC;border-radius:18px;' 
+        'padding:14px 18px;box-shadow:0 8px 24px rgba(60,45,25,0.06);' 
+        'font-size:13px;color:#9A8F82">No subscriptions detected in this period.</div>',
+        unsafe_allow_html=True
+    )
+else:
+    subs_col, _ = st.columns([1, 1])
+    with subs_col:
+        sub_rows = ""
+        for _, row in subs_df.iterrows():
+            desc = str(row["Description"])[:40]
+            sub_rows += (
+                f'<div style="display:flex;justify-content:space-between;align-items:center;' 
+                f'padding:9px 0;border-bottom:0.5px solid #EFE6D6;">' 
+                f'<span style="font-size:13px;font-weight:600;color:#2B2A27">{desc}</span>' 
+                f'<span style="font-size:13px;font-weight:700;color:#D92D20;' 
+                f'font-variant-numeric:tabular-nums">{money(abs(row["Amount"]))}</span>' 
+                f'</div>'
+            )
+        total_sub_line = (
+            f'<div style="display:flex;justify-content:space-between;align-items:center;' 
+            f'padding:10px 0 2px;">' 
+            f'<span style="font-size:12px;font-weight:700;color:#9A8F82;text-transform:uppercase;' 
+            f'letter-spacing:.06em">Total / period</span>' 
+            f'<span style="font-size:14px;font-weight:800;color:#D92D20;' 
+            f'font-variant-numeric:tabular-nums">{money(subs_total)}</span></div>'
+        )
+        st.markdown(
+            '<div style="background:#FFFCF5;border:1px solid #E7DDCC;border-radius:18px;' 
+            'padding:16px 18px;box-shadow:0 8px 24px rgba(60,45,25,0.06);">' 
+            '<div style="font-size:10px;text-transform:uppercase;letter-spacing:.08em;' 
+            'color:#9A8F82;font-weight:800;margin-bottom:8px;">Active subscriptions</div>' 
+            + sub_rows + total_sub_line + '</div>',
+            unsafe_allow_html=True
+        )
 
 
 # ============================================================
@@ -1033,13 +1152,22 @@ if search:
     ]
 
 display_df = table_df[["Date", "Description", "Category", "Type", "Amount"]].copy()
+display_df = display_df.sort_values("Date", ascending=False).reset_index(drop=True)
 display_df["Date"] = display_df["Date"].dt.strftime("%d %b %Y")
 display_df["Amount"] = display_df["Amount"].map(lambda x: money(x, signed=True))
 
-st.dataframe(
-    display_df,
-    use_container_width=True,
-    height=360
+st.markdown(
+    f'<div style="font-size:12px;color:#9A8F82;margin-bottom:6px;">' 
+    f'Showing {len(display_df)} transaction{"s" if len(display_df) != 1 else ""}</div>',
+    unsafe_allow_html=True
+)
+st.dataframe(display_df, use_container_width=True, height=360)
+
+st.download_button(
+    "⬇ Download filtered CSV",
+    data=table_df.to_csv(index=False).encode("utf-8"),
+    file_name="transactions_filtered.csv",
+    mime="text/csv",
 )
 
 
