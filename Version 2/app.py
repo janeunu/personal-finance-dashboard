@@ -474,18 +474,13 @@ def kpi(label: str, value: str, sub: str = "", tone: str = "") -> str:
         "purple": "#0F9F6E",
     }
     value_color = color_map.get(tone, "#2B2A27")
-
-    return f"""
-    <div style="background:#FFFCF5;border:1px solid #E7DDCC;border-radius:16px;
-                padding:16px 17px;min-height:92px;
-                box-shadow:0 8px 24px rgba(60,45,25,0.06);">
-        <div style="font-size:10px;text-transform:uppercase;letter-spacing:.08em;
-                    color:#9A8F82;font-weight:800;margin-bottom:8px;">{label}</div>
-        <div style="font-size:23px;line-height:1.1;font-weight:800;
-                    font-variant-numeric:tabular-nums;color:{value_color};">{value}</div>
-        <div style="font-size:11.5px;color:#9A8F82;margin-top:6px;">{sub}</div>
-    </div>
-    """
+    return (
+        f'<div style="background:#FFFCF5;border:1px solid #E7DDCC;border-radius:16px;padding:16px 17px;min-height:92px;box-shadow:0 8px 24px rgba(60,45,25,0.06);">'
+        f'<div style="font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:#9A8F82;font-weight:800;margin-bottom:8px;">{label}</div>'
+        f'<div style="font-size:23px;line-height:1.1;font-weight:800;font-variant-numeric:tabular-nums;color:{value_color};">{value}</div>'
+        f'<div style="font-size:11.5px;color:#9A8F82;margin-top:6px;">{sub}</div>'
+        f'</div>'
+    )
 
 
 def categorise(description: str, amount: float) -> tuple[str, str]:
@@ -866,17 +861,15 @@ with kpi_col:
     kpi_tone = "good" if net >= 0 else "bad"
     sr_tone = "good" if savings_rate >= 20 else "warn" if savings_rate >= 0 else "bad"
 
-    st.markdown(
-        f"""
-        <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;">
-            {kpi("Money left", money(net, signed=True), "after expenses", kpi_tone)}
-            {kpi("Saved income", pct(savings_rate, 0), "goal: 20%+", sr_tone)}
-            {kpi("Daily spend", money(daily_spend), "average per day", "")}
-            {kpi("Transactions", str(len(filtered)), "in selected view", "purple")}
-        </div>
-        """,
-        unsafe_allow_html=True
+    kpi_html = (
+        '<div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;">'
+        + kpi("Money left", money(net, signed=True), "after expenses", kpi_tone)
+        + kpi("Saved income", pct(savings_rate, 0), "goal: 20%+", sr_tone)
+        + kpi("Daily spend", money(daily_spend), "average per day", "")
+        + kpi("Transactions", str(len(filtered)), "in selected view", "purple")
+        + '</div>'
     )
+    st.markdown(kpi_html, unsafe_allow_html=True)
 
 
 # ============================================================
@@ -912,7 +905,7 @@ with left:
                 legend=dict(orientation="h", y=-0.1)
             )
             # ← fig_monthly calls removed from here
-            st.markdown('<div class="card"><div class="kpi-label">Spending breakdown</div>', unsafe_allow_html=True)
+            st.markdown('<div style="background:#FFFCF5;border:1px solid #E7DDCC;border-radius:18px;padding:12px 14px 4px;box-shadow:0 8px 24px rgba(60,45,25,0.06);"><div style="font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:#9A8F82;font-weight:800;margin-bottom:4px;">Spending breakdown</div>', unsafe_allow_html=True)
             st.plotly_chart(fig_donut, use_container_width=True)
             st.markdown('</div>', unsafe_allow_html=True)
         else:
@@ -949,7 +942,7 @@ with left:
             xaxis_title="",
             yaxis_title="",
         )
-        st.markdown('<div class="card"><div class="kpi-label">Income vs spending</div>', unsafe_allow_html=True)
+        st.markdown('<div style="background:#FFFCF5;border:1px solid #E7DDCC;border-radius:18px;padding:12px 14px 4px;box-shadow:0 8px 24px rgba(60,45,25,0.06);"><div style="font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:#9A8F82;font-weight:800;margin-bottom:4px;">Income vs spending</div>', unsafe_allow_html=True)
         st.plotly_chart(fig_monthly, use_container_width=True)
         st.markdown('</div>', unsafe_allow_html=True)
 
@@ -959,31 +952,23 @@ with right:
     cuttable_total = max(total_expense - fixed_total, 0)
 
     st.markdown(
-        f"""
-        <div style="background:#FFFCF5;border:1px solid #E7DDCC;border-radius:18px;
-                    padding:16px 18px;box-shadow:0 8px 24px rgba(60,45,25,0.06);">
-            <div style="font-size:10px;text-transform:uppercase;letter-spacing:.08em;
-                        color:#9A8F82;font-weight:800;margin-bottom:12px;">Your spending split</div>
-
-            <div style="display:flex;justify-content:space-between;align-items:center;
-                        padding:9px 0;border-bottom:1px solid #EFE6D6;">
-                <div>
-                    <div style="font-size:13px;font-weight:800;color:#2B2A27;">Fixed bills</div>
-                    <div style="font-size:11.5px;color:#9A8F82;margin-top:2px;">rent, childcare, phone, utilities</div>
-                </div>
-                <div style="font-size:13px;font-weight:800;color:#2B2A27;">{money(fixed_total)}</div>
-            </div>
-
-            <div style="display:flex;justify-content:space-between;align-items:center;
-                        padding:9px 0;">
-                <div>
-                    <div style="font-size:13px;font-weight:800;color:#2B2A27;">Cuttable spend</div>
-                    <div style="font-size:11.5px;color:#9A8F82;margin-top:2px;">groceries, dining, shopping</div>
-                </div>
-                <div style="font-size:13px;font-weight:800;color:#0F9F6E;">{money(cuttable_total)}</div>
-            </div>
-        </div>
-        """,
+        f'<div style="background:#FFFCF5;border:1px solid #E7DDCC;border-radius:18px;padding:16px 18px;box-shadow:0 8px 24px rgba(60,45,25,0.06);">'
+        f'<div style="font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:#9A8F82;font-weight:800;margin-bottom:12px;">Your spending split</div>'
+        f'<div style="display:flex;justify-content:space-between;align-items:center;padding:9px 0;border-bottom:1px solid #EFE6D6;">'
+        f'<div>'
+        f'<div style="font-size:13px;font-weight:800;color:#2B2A27;">Fixed bills</div>'
+        f'<div style="font-size:11.5px;color:#9A8F82;margin-top:2px;">rent, childcare, phone, utilities</div>'
+        f'</div>'
+        f'<div style="font-size:13px;font-weight:800;color:#2B2A27;">{money(fixed_total)}</div>'
+        f'</div>'
+        f'<div style="display:flex;justify-content:space-between;align-items:center;padding:9px 0;">'
+        f'<div>'
+        f'<div style="font-size:13px;font-weight:800;color:#2B2A27;">Cuttable spend</div>'
+        f'<div style="font-size:11.5px;color:#9A8F82;margin-top:2px;">groceries, dining, shopping</div>'
+        f'</div>'
+        f'<div style="font-size:13px;font-weight:800;color:#0F9F6E;">{money(cuttable_total)}</div>'
+        f'</div>'
+        f'</div>',
         unsafe_allow_html=True
     )
 
