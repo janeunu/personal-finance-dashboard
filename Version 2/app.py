@@ -1084,33 +1084,86 @@ if subs_df.empty:
         unsafe_allow_html=True
     )
 else:
-    subs_col, _ = st.columns([1, 1])
+    subs_col, action_col = st.columns([1, 1])
     with subs_col:
         sub_rows = ""
         for _, row in subs_df.iterrows():
             desc = str(row["Description"])[:40]
             sub_rows += (
-                f'<div style="display:flex;justify-content:space-between;align-items:center;' 
-                f'padding:9px 0;border-bottom:0.5px solid #EFE6D6;">' 
-                f'<span style="font-size:13px;font-weight:600;color:#2B2A27">{desc}</span>' 
-                f'<span style="font-size:13px;font-weight:700;color:#D92D20;' 
-                f'font-variant-numeric:tabular-nums">{money(abs(row["Amount"]))}</span>' 
+                f'<div style="display:flex;justify-content:space-between;align-items:center;'
+                f'padding:9px 0;border-bottom:0.5px solid #EFE6D6;">'
+                f'<span style="font-size:13px;font-weight:600;color:#2B2A27">{desc}</span>'
+                f'<span style="font-size:13px;font-weight:700;color:#D92D20;'
+                f'font-variant-numeric:tabular-nums">{money(abs(row["Amount"]))}</span>'
                 f'</div>'
             )
         total_sub_line = (
-            f'<div style="display:flex;justify-content:space-between;align-items:center;' 
-            f'padding:10px 0 2px;">' 
-            f'<span style="font-size:12px;font-weight:700;color:#9A8F82;text-transform:uppercase;' 
-            f'letter-spacing:.06em">Total / period</span>' 
-            f'<span style="font-size:14px;font-weight:800;color:#D92D20;' 
+            f'<div style="display:flex;justify-content:space-between;align-items:center;'
+            f'padding:10px 0 2px;">'
+            f'<span style="font-size:12px;font-weight:700;color:#9A8F82;text-transform:uppercase;'
+            f'letter-spacing:.06em">Total / period</span>'
+            f'<span style="font-size:14px;font-weight:800;color:#D92D20;'
             f'font-variant-numeric:tabular-nums">{money(subs_total)}</span></div>'
         )
         st.markdown(
-            '<div style="background:#FFFCF5;border:1px solid #E7DDCC;border-radius:18px;' 
-            'padding:16px 18px;box-shadow:0 8px 24px rgba(60,45,25,0.06);">' 
-            '<div style="font-size:10px;text-transform:uppercase;letter-spacing:.08em;' 
-            'color:#9A8F82;font-weight:800;margin-bottom:8px;">Active subscriptions</div>' 
+            '<div style="background:#FFFCF5;border:1px solid #E7DDCC;border-radius:18px;'
+            'padding:16px 18px;box-shadow:0 8px 24px rgba(60,45,25,0.06);">'
+            '<div style="font-size:10px;text-transform:uppercase;letter-spacing:.08em;'
+            'color:#9A8F82;font-weight:800;margin-bottom:8px;">Active subscriptions</div>'
             + sub_rows + total_sub_line + '</div>',
+            unsafe_allow_html=True
+        )
+
+    with action_col:
+        # Computed values for the summary card
+        goal_pct     = 20
+        bar_w        = min(savings_rate / goal_pct * 100, 100) if goal_pct > 0 else 0
+        sr_color     = "#079455" if savings_rate >= goal_pct else "#B54708" if savings_rate >= 10 else "#D92D20"
+        sr_label     = "Ahead of goal 🎉" if savings_rate >= goal_pct else f"{goal_pct - savings_rate:.0f}% away from goal"
+        fixed_pct    = (fixed_total / total_expense * 100) if total_expense > 0 else 0
+        cuttable_pct = (cuttable_total / total_expense * 100) if total_expense > 0 else 0
+        subs_pct     = (subs_total / total_income * 100) if total_income > 0 else 0
+
+        # Personalised action based on actual data
+        if savings_rate < 10:
+            action_txt = f"Your savings rate is {savings_rate:.0f}%. Reducing your top spending category by just 10% could move you into the healthy range."
+        elif subs_pct > 6:
+            action_txt = f"Subscriptions are {subs_pct:.1f}% of income ({money(subs_total)}). Cancelling one unused service would recover {money(subs_total / max(len(subs_df), 1) * 12)} per year."
+        elif fixed_pct > 70:
+            action_txt = f"{fixed_pct:.0f}% of spending is fixed bills. Your main opportunity to cut is in discretionary categories like dining and shopping."
+        else:
+            action_txt = f"You're saving {savings_rate:.0f}% this period — above the 20% goal. Consider putting the surplus into a high-interest account or index fund."
+
+        def _row(lbl, val, col="#6B6258"):
+            return (
+                f'<div style="display:flex;justify-content:space-between;align-items:center;'
+                f'padding:7px 0;border-bottom:0.5px solid #EFE6D6;">'
+                f'<span style="font-size:12.5px;color:#6B6258">{lbl}</span>'
+                f'<span style="font-size:13px;font-weight:700;color:{col};font-variant-numeric:tabular-nums">{val}</span>'
+                f'</div>'
+            )
+
+        st.markdown(
+            '<div style="background:#FFFCF5;border:1px solid #E7DDCC;border-radius:18px;padding:16px 18px;box-shadow:0 8px 24px rgba(60,45,25,0.06);">'
+            '<div style="font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:#9A8F82;font-weight:800;margin-bottom:14px;">Money health summary</div>'
+            f'<div style="margin-bottom:14px;">'
+            f'<div style="display:flex;justify-content:space-between;margin-bottom:5px;">'
+            f'<span style="font-size:12.5px;font-weight:700;color:#2B2A27">Savings rate</span>'
+            f'<span style="font-size:12.5px;font-weight:700;color:{sr_color}">{pct(savings_rate, 1)}</span>'
+            f'</div>'
+            f'<div style="width:100%;height:8px;background:#EFE6D6;border-radius:99px;overflow:hidden;">'
+            f'<div style="width:{bar_w:.0f}%;height:100%;background:{sr_color};border-radius:99px;"></div>'
+            f'</div>'
+            f'<div style="font-size:11px;color:#9A8F82;margin-top:4px">{sr_label} · Goal: {goal_pct}%</div>'
+            f'</div>'
+            + _row("Fixed bills", f"{fixed_pct:.0f}% of spending")
+            + _row("Cuttable spend", f"{cuttable_pct:.0f}% of spending", "#0F9F6E")
+            + _row("Subscriptions", f"{subs_pct:.1f}% of income", "#D92D20" if subs_pct > 6 else "#6B6258")
+            + _row("Daily average spend", money(daily_spend))
+            + '<div style="background:#F0FAF5;border:1px solid #BBE7D1;border-radius:12px;padding:11px 13px;margin-top:13px;">'
+            + '<div style="font-size:10px;text-transform:uppercase;letter-spacing:.07em;color:#079455;font-weight:800;margin-bottom:4px;">💡 What to focus on</div>'
+            + f'<div style="font-size:12.5px;color:#2B2A27;line-height:1.55">{action_txt}</div>'
+            + '</div></div>',
             unsafe_allow_html=True
         )
 
