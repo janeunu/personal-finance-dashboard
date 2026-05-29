@@ -134,7 +134,7 @@ st.markdown(
 
     /* Money Health Score hero — dark navy (approved design) */
     .hero {
-        background: #1A6B4A;
+        background: #0D3D2B;
         color: #F1F5F9;
         border: none;
         border-radius: 20px;
