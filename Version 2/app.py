@@ -26,19 +26,19 @@ st.markdown(
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
 
     :root {
-        --page-bg: #F5F1E8;
-        --card-bg: #FFFCF5;
-        --card-bg-2: #F8F2E7;
-        --border: #E7DDCC;
-        --border-soft: #EFE6D6;
+        --page-bg: #F6EFE6;
+        --card-bg: #FFF8F0;
+        --card-bg-2: #FAEFE3;
+        --border: #E8D8C5;
+        --border-soft: #F1E4D6;
         --shadow: 0 8px 24px rgba(60, 45, 25, 0.06);
 
-        --accent: #0F9F6E;
-        --accent-dark: #087A55;
-        --accent-soft: #E6F5EE;
+        --accent: #E07A2D;
+        --accent-dark: #A84E12;
+        --accent-soft: #FFF0E3;
 
-        --positive: #079455;
-        --negative: #D92D20;
+        --positive: #C8661C;
+        --negative: #C64A3A;
         --warning: #B54708;
 
         --text-primary: #2B2A27;
@@ -132,18 +132,18 @@ st.markdown(
         box-shadow: var(--shadow);
     }
 
-    /* Money Health Score hero — dark navy (approved design) */
+    /* Money Health Score hero — soft orange/beige V7 style */
     .hero {
-        background: #0D3D2B;
-        color: #F1F5F9;
-        border: none;
+        background: linear-gradient(135deg, #FFF8F0 0%, #FFF0E3 100%);
+        color: var(--text-primary);
+        border: 1px solid #F0C19A;
         border-radius: 20px;
         padding: 26px 30px;
         min-height: 160px;
         display: flex;
         align-items: center;
         gap: 28px;
-        box-shadow: 0 20px 40px rgba(15,23,42,0.25);
+        box-shadow: var(--shadow);
     }
 
     .score {
@@ -159,16 +159,16 @@ st.markdown(
         font-size: 10px;
         text-transform: uppercase;
         letter-spacing: .13em;
-        color: #64748B;
-        font-weight: 700;
+        color: var(--text-muted);
+        font-weight: 800;
         margin-bottom: 8px;
     }
 
     .score-title {
         font-size: 20px;
-        font-weight: 700;
+        font-weight: 800;
         line-height: 1.35;
-        color: #F1F5F9;
+        color: var(--text-primary);
         margin-bottom: 12px;
     }
 
@@ -181,7 +181,7 @@ st.markdown(
     .score-stat {
         padding-right: 18px;
         margin-right: 18px;
-        border-right: 1px solid #1E293B;
+        border-right: 1px solid var(--border);
     }
 
     .score-stat:last-child {
@@ -194,16 +194,16 @@ st.markdown(
         font-size: 9px;
         text-transform: uppercase;
         letter-spacing: .1em;
-        color: #475569;
-        font-weight: 700;
+        color: var(--text-muted);
+        font-weight: 800;
         margin-bottom: 3px;
     }
 
     .score-stat-value {
         font-size: 13px;
-        font-weight: 700;
+        font-weight: 800;
         font-variant-numeric: tabular-nums;
-        color: #CBD5E1;
+        color: var(--text-primary);
     }
 
     .kpi-grid {
@@ -310,7 +310,7 @@ st.markdown(
     .progress-track {
         width: 100%;
         height: 7px;
-        background: #EFE6D6;
+        background: #F1E4D6;
         border-radius: 999px;
         overflow: hidden;
         margin-top: 7px;
@@ -331,8 +331,8 @@ st.markdown(
     }
 
     .insight {
-        background: #FFF8EA;
-        border: 1px solid #EAD9B7;
+        background: #FFF4E8;
+        border: 1px solid #EBCBAF;
         border-radius: 16px;
         padding: 15px 16px;
         min-height: 95px;
@@ -386,10 +386,10 @@ st.markdown(
     div[data-testid="stRadio"] label[data-baseweb="radio"] {
         display: inline-flex !important;
         align-items: center !important;
-        border: 1px solid #E7DDCC !important;
+        border: 1px solid #E8D8C5 !important;
         border-radius: 99px !important;
         padding: 5px 16px !important;
-        background: #FFFCF5 !important;
+        background: #FFF8F0 !important;
         color: #6B6258 !important;
         font-size: 12.5px !important;
         font-weight: 600 !important;
@@ -401,8 +401,8 @@ st.markdown(
         display: none !important;
     }
     div[data-testid="stRadio"] label[data-baseweb="radio"]:has(input:checked) {
-        background: #0F9F6E !important;
-        border-color: #0F9F6E !important;
+        background: #E07A2D !important;
+        border-color: #E07A2D !important;
         color: #FFFFFF !important;
     }
 
@@ -457,7 +457,7 @@ def section(title: str) -> None:
     st.markdown(
         f"""
         <div style="display:flex;align-items:center;gap:9px;margin:16px 0 8px">
-            <div style="width:5px;height:18px;border-radius:10px;background:#0F9F6E;flex-shrink:0"></div>
+            <div style="width:5px;height:18px;border-radius:10px;background:#E07A2D;flex-shrink:0"></div>
             <div style="font-size:11px;color:#6B6258;font-weight:800;
                         letter-spacing:.09em;text-transform:uppercase">{title}</div>
         </div>
@@ -468,14 +468,14 @@ def section(title: str) -> None:
 
 def kpi(label: str, value: str, sub: str = "", tone: str = "") -> str:
     color_map = {
-        "good":   "#079455",
-        "bad":    "#D92D20",
+        "good":   "#C8661C",
+        "bad":    "#C64A3A",
         "warn":   "#B54708",
-        "purple": "#0F9F6E",
+        "purple": "#E07A2D",
     }
     value_color = color_map.get(tone, "#2B2A27")
     return (
-        f'<div style="background:#FFFCF5;border:1px solid #E7DDCC;border-radius:16px;padding:16px 17px;min-height:92px;box-shadow:0 8px 24px rgba(60,45,25,0.06);">'
+        f'<div style="background:#FFF8F0;border:1px solid #E8D8C5;border-radius:16px;padding:16px 17px;min-height:92px;box-shadow:0 8px 24px rgba(60,45,25,0.06);">'
         f'<div style="font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:#9A8F82;font-weight:800;margin-bottom:8px;">{label}</div>'
         f'<div style="font-size:23px;line-height:1.1;font-weight:800;font-variant-numeric:tabular-nums;color:{value_color};">{value}</div>'
         f'<div style="font-size:11.5px;color:#9A8F82;margin-top:6px;">{sub}</div>'
@@ -588,12 +588,12 @@ def score_label(score: int) -> str:
 
 def score_color(score: int) -> str:
     if score >= 80:
-        return "#0F9F6E"
+        return "#E07A2D"
     if score >= 65:
         return "#2E7D68"
     if score >= 45:
         return "#B54708"
-    return "#D92D20"
+    return "#C64A3A"
 
 
 def build_insights(total_income, total_expense, net, savings_rate, expense_summary, subs_total):
@@ -836,15 +836,15 @@ with hero_col:
                 <div class="score-stats">
                     <div class="score-stat">
                         <div class="score-stat-label">Earned</div>
-                        <div class="score-stat-value" style="color:#34D399">{money(total_income)}</div>
+                        <div class="score-stat-value" style="color:#E07A2D">{money(total_income)}</div>
                     </div>
                     <div class="score-stat">
                         <div class="score-stat-label">Spent</div>
-                        <div class="score-stat-value" style="color:#F87171">{money(total_expense)}</div>
+                        <div class="score-stat-value" style="color:#C64A3A">{money(total_expense)}</div>
                     </div>
                     <div class="score-stat">
                         <div class="score-stat-label">Saved</div>
-                        <div class="score-stat-value" style="color:#34D399">{money(net, signed=True)}</div>
+                        <div class="score-stat-value" style="color:#E07A2D">{money(net, signed=True)}</div>
                     </div>
                     <div class="score-stat">
                         <div class="score-stat-label">Savings Rate</div>
@@ -891,21 +891,21 @@ with left:
                 values="Amount",
                 hole=0.55,
                 color_discrete_sequence=[
-                    "#0F9F6E", "#7CBFA5", "#D96C5F", "#D9A441",
+                    "#E07A2D", "#7CBFA5", "#C64A3A", "#D9A441",
                     "#6AAE9F", "#A7C957", "#C9895B"
                 ],
             )
             fig_donut.update_layout(
                 height=310,
                 margin=dict(t=10, b=10, l=10, r=10),
-                paper_bgcolor="#FFFCF5",
-                plot_bgcolor="#FFFCF5",
+                paper_bgcolor="#FFF8F0",
+                plot_bgcolor="#FFF8F0",
                 font=dict(family="Inter", size=11),
                 showlegend=True,
                 legend=dict(orientation="h", y=-0.1)
             )
             # ← fig_monthly calls removed from here
-            st.markdown('<div style="background:#FFFCF5;border:1px solid #E7DDCC;border-radius:18px;padding:12px 14px 4px;box-shadow:0 8px 24px rgba(60,45,25,0.06);"><div style="font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:#9A8F82;font-weight:800;margin-bottom:4px;">Spending breakdown</div>', unsafe_allow_html=True)
+            st.markdown('<div style="background:#FFF8F0;border:1px solid #E8D8C5;border-radius:18px;padding:12px 14px 4px;box-shadow:0 8px 24px rgba(60,45,25,0.06);"><div style="font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:#9A8F82;font-weight:800;margin-bottom:4px;">Spending breakdown</div>', unsafe_allow_html=True)
             st.plotly_chart(fig_donut, use_container_width=True)
             st.markdown('</div>', unsafe_allow_html=True)
         else:
@@ -918,31 +918,31 @@ with left:
             y="Amount",
             color="Type",
             barmode="group",
-            color_discrete_map={"Income": "#0F9F6E", "Expense": "#D96C5F"},
+            color_discrete_map={"Income": "#E07A2D", "Expense": "#C64A3A"},
         )
         # ← now safe to call update methods
         fig_monthly.update_xaxes(
             showgrid=False,
-            linecolor="#E7DDCC",
+            linecolor="#E8D8C5",
             tickfont=dict(color="#6B6258")
         )
         fig_monthly.update_yaxes(
             showgrid=True,
-            gridcolor="#EFE6D6",
-            linecolor="#E7DDCC",
+            gridcolor="#F1E4D6",
+            linecolor="#E8D8C5",
             tickfont=dict(color="#6B6258")
         )
         fig_monthly.update_layout(
             height=310,
             margin=dict(t=10, b=10, l=10, r=10),
-            paper_bgcolor="#FFFCF5",
-            plot_bgcolor="#FFFCF5",
+            paper_bgcolor="#FFF8F0",
+            plot_bgcolor="#FFF8F0",
             font=dict(family="Inter", size=11, color="#6B6258"),
             legend=dict(orientation="h", y=-0.1),
             xaxis_title="",
             yaxis_title="",
         )
-        st.markdown('<div style="background:#FFFCF5;border:1px solid #E7DDCC;border-radius:18px;padding:12px 14px 4px;box-shadow:0 8px 24px rgba(60,45,25,0.06);"><div style="font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:#9A8F82;font-weight:800;margin-bottom:4px;">Income vs spending</div>', unsafe_allow_html=True)
+        st.markdown('<div style="background:#FFF8F0;border:1px solid #E8D8C5;border-radius:18px;padding:12px 14px 4px;box-shadow:0 8px 24px rgba(60,45,25,0.06);"><div style="font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:#9A8F82;font-weight:800;margin-bottom:4px;">Income vs spending</div>', unsafe_allow_html=True)
         st.plotly_chart(fig_monthly, use_container_width=True)
         st.markdown('</div>', unsafe_allow_html=True)
 
@@ -952,9 +952,9 @@ with right:
     cuttable_total = max(total_expense - fixed_total, 0)
 
     st.markdown(
-        f'<div style="background:#FFFCF5;border:1px solid #E7DDCC;border-radius:18px;padding:16px 18px;box-shadow:0 8px 24px rgba(60,45,25,0.06);">'
+        f'<div style="background:#FFF8F0;border:1px solid #E8D8C5;border-radius:18px;padding:16px 18px;box-shadow:0 8px 24px rgba(60,45,25,0.06);">'
         f'<div style="font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:#9A8F82;font-weight:800;margin-bottom:12px;">Your spending split</div>'
-        f'<div style="display:flex;justify-content:space-between;align-items:center;padding:9px 0;border-bottom:1px solid #EFE6D6;">'
+        f'<div style="display:flex;justify-content:space-between;align-items:center;padding:9px 0;border-bottom:1px solid #F1E4D6;">'
         f'<div>'
         f'<div style="font-size:13px;font-weight:800;color:#2B2A27;">Fixed bills</div>'
         f'<div style="font-size:11.5px;color:#9A8F82;margin-top:2px;">rent, childcare, phone, utilities</div>'
@@ -966,7 +966,7 @@ with right:
         f'<div style="font-size:13px;font-weight:800;color:#2B2A27;">Cuttable spend</div>'
         f'<div style="font-size:11.5px;color:#9A8F82;margin-top:2px;">groceries, dining, shopping</div>'
         f'</div>'
-        f'<div style="font-size:13px;font-weight:800;color:#0F9F6E;">{money(cuttable_total)}</div>'
+        f'<div style="font-size:13px;font-weight:800;color:#E07A2D;">{money(cuttable_total)}</div>'
         f'</div>'
         f'</div>',
         unsafe_allow_html=True
@@ -979,7 +979,7 @@ with right:
     ]
 
     budget_html = (
-        '<div style="background:#FFFCF5;border:1px solid #E7DDCC;border-radius:18px;' 
+        '<div style="background:#FFF8F0;border:1px solid #E8D8C5;border-radius:18px;' 
         'padding:16px 18px;box-shadow:0 8px 24px rgba(60,45,25,0.06);margin-top:10px;">' 
         '<div style="font-size:10px;text-transform:uppercase;letter-spacing:.08em;' 
         'color:#9A8F82;font-weight:800;margin-bottom:14px;">Budget check</div>'
@@ -995,11 +995,11 @@ with right:
         width = min((actual_pct / recommended_pct * 100), 100) if recommended_pct > 0 else 0
 
         if actual_pct > recommended_pct:
-            status, bar_color = "Over", "#D92D20"
+            status, bar_color = "Over", "#C64A3A"
         elif actual_pct > recommended_pct * 0.8:
             status, bar_color = "Watch", "#B54708"
         else:
-            status, bar_color = "On track", "#0F9F6E"
+            status, bar_color = "On track", "#E07A2D"
 
         budget_html += (
             f'<div style="margin-bottom:13px;">' 
@@ -1007,7 +1007,7 @@ with right:
             f'<div><div style="font-size:13px;font-weight:700;color:#2B2A27">{category}</div>' 
             f'<div style="font-size:11px;color:#9A8F82;margin-top:1px">{money(amount)} used</div></div>' 
             f'<div style="font-size:11px;font-weight:700;color:{bar_color}">{status}</div></div>' 
-            f'<div style="width:100%;height:6px;background:#EFE6D6;border-radius:99px;overflow:hidden;">' 
+            f'<div style="width:100%;height:6px;background:#F1E4D6;border-radius:99px;overflow:hidden;">' 
             f'<div style="width:{width:.0f}%;height:100%;background:{bar_color};border-radius:99px;"></div>' 
             f'</div></div>'
         )
@@ -1034,15 +1034,15 @@ with spend_col:
                 f'<div style="margin-bottom:11px;">' 
                 f'<div style="display:flex;justify-content:space-between;margin-bottom:4px;">' 
                 f'<div style="font-size:13px;font-weight:700;color:#2B2A27">{row["Category"]}</div>' 
-                f'<div style="font-size:13px;font-weight:700;color:#0F9F6E;font-variant-numeric:tabular-nums">{money(row["Amount"])}</div>' 
+                f'<div style="font-size:13px;font-weight:700;color:#E07A2D;font-variant-numeric:tabular-nums">{money(row["Amount"])}</div>' 
                 f'</div>' 
-                f'<div style="width:100%;height:6px;background:#EFE6D6;border-radius:99px;overflow:hidden;">' 
-                f'<div style="width:{bar_w:.0f}%;height:100%;background:#0F9F6E;border-radius:99px;"></div>' 
+                f'<div style="width:100%;height:6px;background:#F1E4D6;border-radius:99px;overflow:hidden;">' 
+                f'<div style="width:{bar_w:.0f}%;height:100%;background:#E07A2D;border-radius:99px;"></div>' 
                 f'</div></div>'
             )
     empty_msg = '<div style="font-size:12px;color:#9A8F82">No spending categories found.</div>'
     st.markdown(
-        '<div style="background:#FFFCF5;border:1px solid #E7DDCC;border-radius:18px;' 
+        '<div style="background:#FFF8F0;border:1px solid #E8D8C5;border-radius:18px;' 
         'padding:16px 18px;box-shadow:0 8px 24px rgba(60,45,25,0.06);">' 
         '<div style="font-size:10px;text-transform:uppercase;letter-spacing:.08em;' 
         'color:#9A8F82;font-weight:800;margin-bottom:14px;">Top categories</div>' 
@@ -1057,7 +1057,7 @@ with insight_col:
     insight_html = '<div style="display:flex;flex-direction:column;gap:9px;">'
     for item in insights:
         insight_html += (
-            f'<div style="background:#FFF8EA;border:1px solid #EAD9B7;border-radius:16px;' 
+            f'<div style="background:#FFF4E8;border:1px solid #EBCBAF;border-radius:16px;' 
             f'padding:14px 16px;box-shadow:0 8px 24px rgba(60,45,25,0.06);">' 
             f'<div style="font-size:13.5px;font-weight:800;color:#2B2A27;margin-bottom:5px">{item["title"]}</div>' 
             f'<div style="font-size:12.5px;color:#6B6258;line-height:1.55">{item["body"]}</div>' 
@@ -1078,7 +1078,7 @@ subs_df = subs_df.sort_values("Amount")
 
 if subs_df.empty:
     st.markdown(
-        '<div style="background:#FFFCF5;border:1px solid #E7DDCC;border-radius:18px;' 
+        '<div style="background:#FFF8F0;border:1px solid #E8D8C5;border-radius:18px;' 
         'padding:14px 18px;box-shadow:0 8px 24px rgba(60,45,25,0.06);' 
         'font-size:13px;color:#9A8F82">No subscriptions detected in this period.</div>',
         unsafe_allow_html=True
@@ -1091,9 +1091,9 @@ else:
             desc = str(row["Description"])[:40]
             sub_rows += (
                 f'<div style="display:flex;justify-content:space-between;align-items:center;'
-                f'padding:9px 0;border-bottom:0.5px solid #EFE6D6;">'
+                f'padding:9px 0;border-bottom:0.5px solid #F1E4D6;">'
                 f'<span style="font-size:13px;font-weight:600;color:#2B2A27">{desc}</span>'
-                f'<span style="font-size:13px;font-weight:700;color:#D92D20;'
+                f'<span style="font-size:13px;font-weight:700;color:#C64A3A;'
                 f'font-variant-numeric:tabular-nums">{money(abs(row["Amount"]))}</span>'
                 f'</div>'
             )
@@ -1102,11 +1102,11 @@ else:
             f'padding:10px 0 2px;">'
             f'<span style="font-size:12px;font-weight:700;color:#9A8F82;text-transform:uppercase;'
             f'letter-spacing:.06em">Total / period</span>'
-            f'<span style="font-size:14px;font-weight:800;color:#D92D20;'
+            f'<span style="font-size:14px;font-weight:800;color:#C64A3A;'
             f'font-variant-numeric:tabular-nums">{money(subs_total)}</span></div>'
         )
         st.markdown(
-            '<div style="background:#FFFCF5;border:1px solid #E7DDCC;border-radius:18px;'
+            '<div style="background:#FFF8F0;border:1px solid #E8D8C5;border-radius:18px;'
             'padding:16px 18px;box-shadow:0 8px 24px rgba(60,45,25,0.06);">'
             '<div style="font-size:10px;text-transform:uppercase;letter-spacing:.08em;'
             'color:#9A8F82;font-weight:800;margin-bottom:8px;">Active subscriptions</div>'
@@ -1118,7 +1118,7 @@ else:
         # Computed values for the summary card
         goal_pct     = 20
         bar_w        = min(savings_rate / goal_pct * 100, 100) if goal_pct > 0 else 0
-        sr_color     = "#079455" if savings_rate >= goal_pct else "#B54708" if savings_rate >= 10 else "#D92D20"
+        sr_color     = "#C8661C" if savings_rate >= goal_pct else "#B54708" if savings_rate >= 10 else "#C64A3A"
         sr_label     = "Ahead of goal 🎉" if savings_rate >= goal_pct else f"{goal_pct - savings_rate:.0f}% away from goal"
         fixed_pct    = (fixed_total / total_expense * 100) if total_expense > 0 else 0
         cuttable_pct = (cuttable_total / total_expense * 100) if total_expense > 0 else 0
@@ -1137,31 +1137,31 @@ else:
         def _row(lbl, val, col="#6B6258"):
             return (
                 f'<div style="display:flex;justify-content:space-between;align-items:center;'
-                f'padding:7px 0;border-bottom:0.5px solid #EFE6D6;">'
+                f'padding:7px 0;border-bottom:0.5px solid #F1E4D6;">'
                 f'<span style="font-size:12.5px;color:#6B6258">{lbl}</span>'
                 f'<span style="font-size:13px;font-weight:700;color:{col};font-variant-numeric:tabular-nums">{val}</span>'
                 f'</div>'
             )
 
         st.markdown(
-            '<div style="background:#FFFCF5;border:1px solid #E7DDCC;border-radius:18px;padding:16px 18px;box-shadow:0 8px 24px rgba(60,45,25,0.06);">'
+            '<div style="background:#FFF8F0;border:1px solid #E8D8C5;border-radius:18px;padding:16px 18px;box-shadow:0 8px 24px rgba(60,45,25,0.06);">'
             '<div style="font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:#9A8F82;font-weight:800;margin-bottom:14px;">Money health summary</div>'
             f'<div style="margin-bottom:14px;">'
             f'<div style="display:flex;justify-content:space-between;margin-bottom:5px;">'
             f'<span style="font-size:12.5px;font-weight:700;color:#2B2A27">Savings rate</span>'
             f'<span style="font-size:12.5px;font-weight:700;color:{sr_color}">{pct(savings_rate, 1)}</span>'
             f'</div>'
-            f'<div style="width:100%;height:8px;background:#EFE6D6;border-radius:99px;overflow:hidden;">'
+            f'<div style="width:100%;height:8px;background:#F1E4D6;border-radius:99px;overflow:hidden;">'
             f'<div style="width:{bar_w:.0f}%;height:100%;background:{sr_color};border-radius:99px;"></div>'
             f'</div>'
             f'<div style="font-size:11px;color:#9A8F82;margin-top:4px">{sr_label} · Goal: {goal_pct}%</div>'
             f'</div>'
             + _row("Fixed bills", f"{fixed_pct:.0f}% of spending")
-            + _row("Cuttable spend", f"{cuttable_pct:.0f}% of spending", "#0F9F6E")
-            + _row("Subscriptions", f"{subs_pct:.1f}% of income", "#D92D20" if subs_pct > 6 else "#6B6258")
+            + _row("Cuttable spend", f"{cuttable_pct:.0f}% of spending", "#E07A2D")
+            + _row("Subscriptions", f"{subs_pct:.1f}% of income", "#C64A3A" if subs_pct > 6 else "#6B6258")
             + _row("Daily average spend", money(daily_spend))
-            + '<div style="background:#F0FAF5;border:1px solid #BBE7D1;border-radius:12px;padding:11px 13px;margin-top:13px;">'
-            + '<div style="font-size:10px;text-transform:uppercase;letter-spacing:.07em;color:#079455;font-weight:800;margin-bottom:4px;">💡 What to focus on</div>'
+            + '<div style="background:#FFF0E3;border:1px solid #F0C19A;border-radius:12px;padding:11px 13px;margin-top:13px;">'
+            + '<div style="font-size:10px;text-transform:uppercase;letter-spacing:.07em;color:#C8661C;font-weight:800;margin-bottom:4px;">💡 What to focus on</div>'
             + f'<div style="font-size:12.5px;color:#2B2A27;line-height:1.55">{action_txt}</div>'
             + '</div></div>',
             unsafe_allow_html=True
